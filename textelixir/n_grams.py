@@ -1,4 +1,4 @@
-from .word import Word
+from word import Word
 
 class NGrams:
     def __init__(self, elixir, size, group_by, bounds=None, sep=' '):

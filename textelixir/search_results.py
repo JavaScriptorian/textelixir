@@ -1,21 +1,37 @@
+import pandas
 import re
-from .word import Word
-from .kwic import KWIC
+from word import Word
+from kwic import KWIC
+from collocates import Collocates
+from sentences import Sentences
 
 class SearchResults:
-    def __init__(self, elixir, search_string, kwargs):
-        self.elixir = elixir
-        self.search_string = search_string
-        self.kwargs = kwargs
-        self.results_indices = self.get_results_indices()
-        self.hits = self.get_kwic_lines(before=0, after=0)
-
-        ibrk = 0
+    def __init__(self, filename, search_string, word_count, **kwargs):
+        self.filename = filename
+        # Default verbose setting to True
+        self.punct_pos = kwargs['punct_pos']
+        if 'verbose' in kwargs:
+            self.verbose = kwargs['verbose']
+        else:
+            self.verbose = True
+        self.word_count = word_count    # Total words in corpus
+        # If the search_string is just one string, then get the results_indices for that word.
+        if isinstance(search_string, str):
+            self.search_string = search_string
+            self.results_indices = self.get_results_indices()
+        elif isinstance(search_string, list):
+            self.search_string = search_string
+            self.results_totals = self.get_results_indices()
+        # self.hits = self.get_kwic_lines(before=0, after=0)
 
 
     def get_results_indices(self):
         # Determine the search_type: word or phrase
-        search_words = self.search_string.split(' ')
+        if isinstance(self.search_string, str):
+            search_words = self.search_string.split(' ')
+        elif isinstance(self.search_string, list):
+            search_words = self.search_string[0].split(' ')
+
         if len(search_words) > 1:
             search_type = 'phrase'
         else:
@@ -23,127 +39,211 @@ class SearchResults:
         
 
         if search_type == 'word':
-            word_type, search_word = self.get_word_type(self.search_string)
+            if isinstance(self.search_string, str):
+                word_type, search_word = self.get_word_type(self.search_string)
+                ibrk = 0
+            elif isinstance(self.search_string, list):
+                # Word type is determined by the first word in the search list.
+                word_type, search_word = self.get_word_type(self.search_string[0])
+            
             results_indices = self.filter_elixir(self.search_string, word_type)
 
         elif search_type == 'phrase':
             for idx, search_word in enumerate(reversed(search_words)):
+                # Parse ~##~ as partial match operator
+                if re.search(r'^~(\d+)~$', search_word):
+                    distance = int(re.search(r'^~(\d+)~$', search_word).group(1))
+                    continue
+
                 word_type, search_word = self.get_word_type(search_word)
                 if idx == 0:
                     results_indices = self.filter_elixir(search_word, word_type)
+                    # Set default distance to 1.
+                    distance = 1
                 else:
-                    results_indices = [results_index for results_index in results_indices if self.elixir.iloc[results_index-idx][word_type] == search_word]
-            
+                    
+                    self.elixir = pandas.read_csv(self.filename, sep='\t', escapechar='\\', index_col=None, header=0, chunksize=10000)
+                    new_indices = []
+                    for block_num, chunk in enumerate(self.elixir):
+                        # Get the list of the current results indices based on the block number.
+                        curr_indices = self.filter_indices_by_block(results_indices, block_num)               
+
+                        for curr_index in curr_indices:
+                            curr_block_num, word_index = curr_index[0].split(':')
+                            curr_block_num = int(curr_block_num)
+                            word_index = int(word_index)
+
+                            if curr_block_num != block_num:
+                                ibrk = 0
+
+                            if block_num == 0:
+                                previous_words = self.get_previous_words(None, chunk, block_num, word_index, curr_block_num, distance)
+                            else:
+                                previous_words = self.get_previous_words(last_chunk, chunk, block_num, word_index, curr_block_num, distance)
+                            
+                            # Filter those previous words for good hits.
+                            good_hit = None
+                            for y in previous_words:
+                                for key, value in y.items():
+                                    if len(word_type) > 1:
+                                        w1, w2 = re.split(r'(?<!\\)_', search_word)
+                                        wt1, wt2 = word_type
+                                        if value[wt1] == w1 and value[wt2] == w2:
+                                            good_hit = key
+                                            continue
+                                    else:
+                                        if value[word_type[0]] == search_word:
+                                            good_hit = key # 8:120
+                                            continue
+                            if good_hit is not None:
+                                phrase_result = (good_hit, *curr_index)
+                                new_indices.append(phrase_result)
+                        # Save the last chunk.
+                        last_chunk = chunk
+                    # Reset distance to 1
+                    results_indices = new_indices
+                    distance = 1
         
-        for key, value in self.kwargs.items():
-            results_indices = [results_index for results_index in results_indices if self.elixir.iloc[results_index][key] == value]
-            ibrk = 0
+        # Get count of how many results found.
+        self.results_count = 0
+        for index in results_indices:
+            if isinstance(self.search_string, str):
+                self.results_count += 1
+            elif isinstance(self.search_string, list):
+                self.results_count += results_indices[index]
+
+        if self.verbose:
+            print(f'Found {self.results_count} instances of "{self.search_string}"')
         
-        results_count = len(results_indices)
-        print(f'Found {results_count} instances of "{self.search_string}"')
-        
-        self.search_length = len(search_words)
+
         return results_indices
 
 
     def get_word_type(self, search_word):
-        is_pos_search = re.search(r'^/(.+?)/$', search_word)
-        if is_pos_search:
-            return ('pos', is_pos_search.group(1))
-        elif search_word.upper() == search_word:
-            return ('lemma', search_word)
-        else:
-            return ('text', search_word)
+        search_type_list = []
+
+        # Separate the search_word by any underscores.
+        # Must check for an escape backslash before the underscore.
+        search_word_split = re.split(r'(?<!\\)_', search_word)
+        for idx, sw in enumerate(search_word_split):
+            if idx == 0:
+                if re.search(r'^/(.+?)/$', sw):
+                    search_type_list.append('pos')
+                elif search_word.upper() == search_word:
+                    search_type_list.append('lemma')
+                else:
+                    search_type_list.append('lower')
+            else:
+                search_type_list.append('pos')
+        
+        return (search_type_list, search_word)
+
 
 
     def filter_elixir(self, search_word, word_type):
-        results = self.elixir[self.elixir[word_type] == search_word]
-        return [result[0] for result in results.iterrows()]
+        # Initialize a list or dictionary depending on the type of search.
+        if isinstance(search_word, str):
+            results = []
+        elif isinstance(search_word, list):
+            results = {}
+        self.elixir = pandas.read_csv(self.filename, sep='\t', escapechar='\\', index_col=None, header=0, chunksize=10000)
+        for block_num, chunk in enumerate(self.elixir):
+            # Normal Search Handle
+            if isinstance(search_word, str):
+                # Split search word by its handle and remove any // around a POS.
+                word_specs = [re.sub(r'^/(.+?)/$', r'\1', w) for w in re.split(r'(?<!\\)_', search_word)]
+                for wt_idx, wt in enumerate(word_type):
+                    if wt_idx == 0:
+                        found_words = chunk[chunk[wt] == word_specs[wt_idx]]
+                    else:
+                        found_words = found_words[found_words[wt] == word_specs[wt_idx]]
+                for word in found_words.iterrows():
+                    find_index = word[0]-(block_num*10000)
+                    results.append((f'{block_num}:{find_index}',))
+            # Collocates Handle
+            elif isinstance(search_word, list):
+                for word in search_word:
+                    word_specs = [re.sub(r'^/(.+?)/$', r'\1', w) for w in re.split(r'(?<!\\)_', word)]
+                    for wt_idx, wt in enumerate(word_type):
+                        if wt_idx == 0:
+                            found_words = chunk[chunk[wt] == word_specs[wt_idx]]
+                        else:
+                            found_words = found_words[found_words[wt] == word_specs[wt_idx]]
+                    if word not in results:
+                        results[word] = 0
+                    results[word] += len(found_words)
 
-    def kwic_summary(self, before=5, after=5):
-        self.get_kwic_lines(before, after)
+        return results
+
+    # Filters the results_indices list to get only the word citations with the same block number.
+    def filter_indices_by_block(self, results_indices, block_num):
+        filtered_indices = []
+        for index in results_indices:
+            curr_block_num, word_num = index[-1].split(':')
+            if int(curr_block_num) == block_num:
+                filtered_indices.append(index)
+        return filtered_indices
+
+    def get_previous_words(self, last_chunk, chunk, block_num, curr_index, curr_block_num, distance, word_list=None):
+        if word_list == None:
+            word_list = []
+        if len(word_list) == distance:
+            return word_list
+
+        # Get the number of the previous word.
+        find_index = curr_index-1
         
-        summary = self.kwic_lines[0:5]
-        for i in summary:
-            print(i)
+        if find_index < 0:
+            find_index = 10000+curr_index-1
+            # If last_chunk is None, then we are at the beginning of block 0.
+            if last_chunk is None:
+                return word_list
+            # Otherwise, we can check the last chunk to get the next word.
+            previous_word = last_chunk.iloc[find_index]
+            used_block_num = block_num-1
+        else:
+            previous_word = chunk.iloc[find_index]
+            used_block_num = block_num
 
 
-    def get_kwic_lines(self, before, after):
-        kwic_lines = []
-        for results_index in self.results_indices:
-            search_hit_indices = [results_index-word_length for word_length in reversed(range(0, self.search_length))]
-            search_hits = [self.elixir.iloc[search_hit_index] for search_hit_index in search_hit_indices]
-            search_hit_text = ''.join([search_hit['prefix'] + search_hit['text'] for search_hit in search_hits]).strip()
-            
-            search_before_word_window = self.get_kwic_text_before(before, search_hit_indices[0], [])
-            search_after_word_window = self.get_kwic_text_after(after, search_hit_indices[-1], [])
+        # If the pos is PUNCT, let's ignore it and continue to the next word.
+        if previous_word['pos'] == 'PUNCT':
+            word_list = self.get_previous_words(last_chunk, chunk, block_num, curr_index-1, curr_block_num, distance, word_list)
+        else:
+            word_list.append({f'{used_block_num}:{find_index}': previous_word})
+        if len(word_list) != distance:
+            word_list = self.get_previous_words(last_chunk, chunk, block_num, curr_index-1, curr_block_num, distance, word_list)
 
-            kwic_string = ''
-            
-            is_after_first_word = False
+        return word_list
 
-            before_arr = []
-            hit_arr = []
-            after_arr = []
+    ### KWIC LINES HANDLER
+    def kwic_lines(self, before=5, after=5, group_by='lower'):
+        return KWIC(self.filename, self.results_indices, before=before, after=after, group_by=group_by, search_string=self.search_string, punct_pos=self.punct_pos)
 
 
-            for i in range(search_before_word_window, search_after_word_window+1):
-                w = self.elixir.iloc[i]
+    ### COLLOCATES HANDLER
+    def collocates(self, before=5, after=5, group_by='lemma_pos', mi_threshold=3, sample_size_threshold=2):
+        ### ERROR HANDLING
+        # If 0 results, return immediately.
+        if len(self.results_indices) == 0:
+            return None
+        if group_by not in ['lemma', 'lower', 'pos', 'lower_pos', 'lemma_pos']:
+            raise Exception(f"{{group_by}} value is invalid. It must be lemma, lower, pos, lower_pos, or lemma_pos.")
 
-                lowest_level_header = self.get_line_index_header()
+        collocates = Collocates(self.filename, self.results_indices, before, after, self.word_count, group_by, mi_threshold=mi_threshold, sample_size_threshold=sample_size_threshold, search_string=self.search_string)
+        # Set the totals for each word that was found as a collocate. This cannot be done in collocates.py because it depends on search_results.py, which also depends on collocates.py
+        collocates.set_total(self.calculate_collocate_totals(collocates.sample))
+        # Once totals are available, statistics can be calculated.
+        collocates.calculate_friends()
+        return collocates
 
+    def calculate_collocate_totals(self, samples):
+        print('Getting totals for each collocating word.')
+        totals = {}
+        words = [word for word, value in samples.items()]
+        totals = SearchResults(self.filename, words, self.word_count, verbose=False).results_totals
+        return totals
 
-                line_index = w[lowest_level_header]
-
-                if i < search_hit_indices[0]:
-                    before_arr.append(w)
-                elif i > search_hit_indices[-1]:
-                    after_arr.append(w)
-                else:
-                    hit_arr.append(w)
-                
-
-                is_after_first_word = True
-                last_line_index = w[lowest_level_header]
-
-            kwic_lines.append(before_arr, hit_arr, after_arr)
-            ibrk = 0
-        return KWIC(kwic_lines)
-
-    def get_line_index_header(self):
-        headers = list(self.elixir.columns.values)
-        return headers[headers.index('word_index')-1]
-        ibrk = 0
-
-    def get_kwic_text_before(self, before, start_index, indices_list):
-        if start_index-1 < 0:
-            indices_list = indices_list[::-1]
-            return indices_list[0]
-        word = self.elixir.iloc[start_index-1]
-        if word['pos'] not in ['SYM', 'PUNCT']:
-            indices_list.append(start_index-1)
-        
-        if len(indices_list) < before:
-            self.get_kwic_text_before(before, start_index-1, indices_list)
-
-        indices_list = indices_list[::-1]
-        if len(indices_list) > 1:
-            return indices_list[0]
-        # If before == 0, then just return the start_index.
-        return start_index
-
-
-    def get_kwic_text_after(self, after, start_index, indices_list):
-        if start_index+1 >= self.elixir.shape[0]:
-            return indices_list[-1]
-        word = self.elixir.iloc[start_index+1]
-        if word['pos'] not in ['SYM', 'PUNCT']:
-            indices_list.append(start_index+1)
-        
-        if len(indices_list) < after:
-            self.get_kwic_text_after(after, start_index+1, indices_list)
-
-        if len(indices_list) > 1:
-            return indices_list[-1]
-        # If after == 0, then just return the start_index
-        return start_index
+    ### SENTENCES HANDLER
+    def sentences(self, group_by='text'):
+        return Sentences(self.filename, self.results_indices, group_by=group_by, search_string=self.search_string)
