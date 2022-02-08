@@ -241,7 +241,7 @@ class SearchResults:
         print('Getting totals for each collocating word.')
         totals = {}
         words = [word for word, value in samples.items()]
-        totals = SearchResults(self.filename, words, self.word_count, verbose=False).results_totals
+        totals = SearchResults(self.filename, words, self.word_count, punct_pos=self.punct_pos, verbose=False ).results_totals
         return totals
 
     ### SENTENCES HANDLER

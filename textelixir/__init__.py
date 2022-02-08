@@ -245,13 +245,27 @@ class TextElixir:
 # Tag a corpus by part of speech and lemma.
 elixir = TextElixir('Bethany_Grey_Corpus.elix')
 # Get a SearchResults object that can then get kwic lines, collocates, and sentences.
-results = elixir.search('ARGUE_VERB')
-# Get 5 words before and after a search query occurrence.
-kwic = results.kwic_lines(before=7, after=7, group_by='text')
-kwic.export_as_html('argue_verb.html', group_by='text', ignore_punctuation=False)
-# sentences = results.sentences(group_by='text')
-# sentences.export_as_html('argue_verb.html', group_by='text', ignore_punctuation=True)
-ibrk = 0
+
+with open('1grams.txt', 'r', encoding='utf-8') as file_in:
+    words = [i.upper() for i in file_in.read().splitlines()]
+
+for word in words:
+    results = elixir.search(f'{word}_VERB')
+    # Get 5 words before and after a search query occurrence.
+    kwic = results.kwic_lines(before=7, after=7, group_by='text')
+    # Export as a webpage
+    kwic.export_as_html(f'verbs/{word}.html', group_by='text')
+
+    sentences = results.sentences()
+    with open(f'sentences/{word}.txt', 'w', encoding='utf-8') as file_out:
+        for sent in sentences.sentence_lines:
+            print(sent, file=file_out)
+
+    collocates = results.collocates(before=5, after=5)
+    collocates.export_as_tsv(f'collocates/{word}.tsv')
+    ibrk = 0
+
+
 # Get strongest collocates of a search query occurrence.
 # collocates = results.collocates(before=5, after=5, group_by='lemma')
 # Output strongest collocates to an HTML table.

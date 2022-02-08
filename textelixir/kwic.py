@@ -30,7 +30,10 @@ class KWIC:
             if block_num > 0 and len(unfinished_kwic) > 0:
                 while len(unfinished_kwic) > 0:
                     unfinished = unfinished_kwic[0]
-                    collocates_after = self.get_kwic_ocr_after(chunk, block_num, unfinished['after'][-1], unfinished['after'])
+                    if len(unfinished['after']) == 0:
+                        collocates_after = self.get_kwic_ocr_after(chunk, block_num, f'{block_num}:-1', unfinished['after'])
+                    else:
+                        collocates_after = self.get_kwic_ocr_after(chunk, block_num, unfinished['after'][-1], unfinished['after'])
                     kwic_index_ranges.append((unfinished['before_range'], unfinished['search_words'], collocates_after[-1]))
                     unfinished_kwic.pop(0)
 
@@ -295,7 +298,10 @@ class KWIC:
                         word = chunk.iloc[curr_block_index]
                     
                     if word['pos'] in self.punct_pos:
-                        tcells[-1] += f'<span class="punct">{word[group_by]}</span>'
+                        if len(tcells) == 0:
+                            tcells.append(f'<span class="punct">{word[group_by]}</span>')
+                        else:
+                            tcells[-1] += f'<span class="punct">{word[group_by]}</span>'
                     else:
                         prefix = str(word['prefix'])
                         # TODO: Make this more apparent in the tagger!!!
