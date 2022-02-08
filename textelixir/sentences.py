@@ -24,7 +24,10 @@ class Sentences:
             if block_num > 0 and len(unfinished_sentences) > 0:
                 while len(unfinished_sentences) > 0:
                     unf = unfinished_sentences[0]
-                    sentence_after = self.get_sentence_ocr_after(chunk, block_num, unf['after'][-1], unf['word_citation'], unf['after'])
+                    if len(unf['after']) == 0:
+                        sentence_after = self.get_sentence_ocr_after(chunk, block_num, f'{block_num}:-1', unf['word_citation'], unf['after'])
+                    else:
+                        sentence_after = self.get_sentence_ocr_after(chunk, block_num, unf['after'][-1], unf['word_citation'], unf['after'])
                     # kwic_index_ranges.append((unfinished['before_range'], unfinished['search_words'], collocates_after[-1]))
                     sentence_index_ranges.append((unf['before_range'], unf['search_words'], unf['after'][-1]))
                     unfinished_sentences.pop(0)

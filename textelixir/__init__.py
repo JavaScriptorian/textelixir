@@ -261,8 +261,8 @@ for word in words:
         for sent in sentences.sentence_lines:
             print(sent, file=file_out)
 
-    collocates = results.collocates(before=5, after=5)
-    collocates.export_as_tsv(f'collocates/{word}.tsv')
+    # collocates = results.collocates(before=5, after=5)
+    # collocates.export_as_tsv(f'collocates/{word}.tsv')
     ibrk = 0
 
 
