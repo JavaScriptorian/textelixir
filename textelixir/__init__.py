@@ -265,6 +265,8 @@ for word in words:
     collocates.export_as_tsv(f'collocates/{word}.tsv')
     ibrk = 0
 
+    # this is a note to say hi
+
 
 # Get strongest collocates of a search query occurrence.
 # collocates = results.collocates(before=5, after=5, group_by='lemma')
