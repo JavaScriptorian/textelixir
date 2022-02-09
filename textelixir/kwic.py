@@ -277,7 +277,6 @@ class KWIC:
         for block_num, chunk in enumerate(self.elixir):
             # Gets the word indices that are directly available in this current block_num
             curr_indices = self.filter_indices_by_block(self.full_kwic_index_ranges, block_num)
-            
             for kwic_line in curr_indices:
 
                 tcells = []
@@ -296,6 +295,7 @@ class KWIC:
                         word = last_chunk.iloc[curr_block_index]
                     else:
                         word = chunk.iloc[curr_block_index]
+                    
                     
                     if word['pos'] in self.punct_pos:
                         if len(tcells) == 0:

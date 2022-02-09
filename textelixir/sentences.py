@@ -78,6 +78,7 @@ class Sentences:
                         'word_citation': word1_citation
                     })
                 else:
+                    
                     sentence_after_range = sentence_after[-1]
                     sentence_index_ranges.append((sentence_before_range, curr_index, sentence_after_range))
             last_chunk = chunk
@@ -164,6 +165,7 @@ class Sentences:
             try:
                 next_word = chunk.iloc[find_index]
             except IndexError:
+
                 return sentence_list
 
         # If the pos is PUNCT, let's ignore it and continue to the next word.
@@ -171,6 +173,8 @@ class Sentences:
 
 
         if next_word_citation == word_citation:
+            if f'{block_num}:{find_index}' == '70:559':
+                ibrk = 0
             sentence_list.append(f'{block_num}:{find_index}')
             sentence_list = self.get_sentence_ocr_after(chunk, block_num, curr_index+1, word_citation, sentence_list)
         else:

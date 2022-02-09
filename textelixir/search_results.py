@@ -157,8 +157,8 @@ class SearchResults:
                         found_words = chunk[chunk[wt] == word_specs[wt_idx]]
                     else:
                         found_words = found_words[found_words[wt] == word_specs[wt_idx]]
-                for word in found_words.iterrows():
-                    find_index = word[0]-(block_num*10000)
+                for word in found_words.to_dict('index'):
+                    find_index = word-(block_num*10000)
                     results.append((f'{block_num}:{find_index}',))
             # Collocates Handle
             elif isinstance(search_word, list):

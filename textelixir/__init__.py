@@ -1,4 +1,5 @@
 import os
+from tokenize import group
 import pandas
 import re
 from pandas.core.algorithms import isin
@@ -6,7 +7,7 @@ from pandas.errors import ParserError
 import stanza
 # Change to . when exporting
 from search_results import SearchResults
-from n_grams import NGrams
+from ngrams import NGrams
         
 class TextElixir:
     def __init__(self, filename=None, lang='en', elixir_filename=None, **kwargs):
@@ -189,9 +190,9 @@ class TextElixir:
             print(f'Reading {self.filename}...')
         self.elixir = pandas.read_csv(self.filename, sep='\t', escapechar='\\', index_col=None, header=0, chunksize=10000)
         self.word_count = 0
-        chunk_num = 0
+        self.chunk_num = 0
         for chunk in self.elixir:
-            chunk_num += 1
+            self.chunk_num += 1
             normal_words = chunk[chunk['pos'] != 'PUNCT']
             self.word_count += normal_words.shape[0]
         if self.verbose:
@@ -204,14 +205,10 @@ class TextElixir:
             return SearchResults(self.filename, search_string, self.word_count, punct_pos=self.punct_pos)
 
     def ngrams(self, size, group_by='lower', bounds=None, sep=' '):
-        return NGrams(self.elixir, size, group_by, bounds, sep)
+        return NGrams(self.filename, size, group_by, bounds, sep, punct_pos=self.punct_pos, chunk_num=self.chunk_num)
 
-
-# Make KWIC lines work based on new tuples for results indices
-# Double-check that your numbers are correct for MI. It seems to be a little off.
 
 ### Features
-#! TODO: Tagger needs work. It hasn't been touched in ages, and it is very convoluted.
 #! TODO: Develop NGram List
 # TODO: Make KWIC Lines work based on new tuples for results indices.
 # TODO: Keep stopwords for common languages to remove in collocates?
@@ -250,6 +247,7 @@ with open('1grams.txt', 'r', encoding='utf-8') as file_in:
     words = [i.upper() for i in file_in.read().splitlines()]
 
 for word in words:
+    # ngrams = elixir.ngrams(5, group_by='lower', bounds=None, sep=' ')
     results = elixir.search(f'{word}_VERB')
     # Get 5 words before and after a search query occurrence.
     kwic = results.kwic_lines(before=7, after=7, group_by='text')

@@ -1,5 +1,4 @@
-from word import Word
-
+import pandas
 class NGrams:
     def __init__(self, elixir, size, group_by, bounds=None, sep=' '):
         self.elixir = elixir[~elixir['pos'].isin(['PUNCT', 'SYM'])]
