@@ -7,13 +7,13 @@ from sentences import Sentences
 
 class SearchResults:
     def __init__(self, filename, search_string, word_count, **kwargs):
+        
+        # Parse kwargs
+        self.punct_pos = kwargs['punct_pos'] if 'punct_pos' in kwargs else ['PUNCT']
+        self.verbose = kwargs['verbose'] if 'verbose' in kwargs else True
+        self.text_filter = kwargs['text_filter'] if 'text_filter' in kwargs else None
+
         self.filename = filename
-        # Default verbose setting to True
-        self.punct_pos = kwargs['punct_pos']
-        if 'verbose' in kwargs:
-            self.verbose = kwargs['verbose']
-        else:
-            self.verbose = True
         self.word_count = word_count    # Total words in corpus
         # If the search_string is just one string, then get the results_indices for that word.
         if isinstance(search_string, str):
@@ -22,7 +22,6 @@ class SearchResults:
         elif isinstance(search_string, list):
             self.search_string = search_string
             self.results_totals = self.get_results_indices()
-        # self.hits = self.get_kwic_lines(before=0, after=0)
 
 
     def get_results_indices(self):
@@ -148,6 +147,7 @@ class SearchResults:
             results = {}
         self.elixir = pandas.read_csv(self.filename, sep='\t', escapechar='\\', index_col=None, header=0, chunksize=10000)
         for block_num, chunk in enumerate(self.elixir):
+            chunk = self.filter_chunk(chunk)
             # Normal Search Handle
             if isinstance(search_word, str):
                 # Split search word by its handle and remove any // around a POS.
@@ -215,6 +215,29 @@ class SearchResults:
             word_list = self.get_previous_words(last_chunk, chunk, block_num, curr_index-1, curr_block_num, distance, word_list)
 
         return word_list
+
+    # Filters the chunk based on optional filters.
+    def filter_chunk(self, chunk):
+        if self.text_filter == None:
+            return chunk
+        elif isinstance(self.text_filter, dict):
+            filter_index = 0
+            for key, value in self.text_filter.items():
+                if filter_index == 0:
+                    if value.startswith('!'):
+                        new_chunk = chunk[chunk[key] != value[1:]]
+                    else:
+                        new_chunk = chunk[chunk[key] == value]
+                else:
+                    if value.startswith('!'):
+                        new_chunk = new_chunk[new_chunk[key] != value[1:]]
+                    else:
+                        new_chunk = new_chunk[new_chunk[key] == value]
+                filter_index += 1
+            return new_chunk
+        elif isinstance(self.text_filter, list):
+            pass
+            # TODO: This is where a user could input ['Book of Mormon/1 Nephi/1/1'] to specify exact citation filtering.
 
     ### KWIC LINES HANDLER
     def kwic_lines(self, before=5, after=5, group_by='lower'):

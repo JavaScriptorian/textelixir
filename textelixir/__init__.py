@@ -11,14 +11,12 @@ from ngrams import NGrams
         
 class TextElixir:
     def __init__(self, filename=None, lang='en', elixir_filename=None, **kwargs):
+        # Parse kwargs
+        self.punct_pos = kwargs['punct_pos'] if 'punct_pos' in kwargs else ['SYM', 'PUNCT']
+        self.verbose = kwargs['verbose'] if 'verbose' in kwargs else True
+        # Parse args
         self.filename = filename
         self.lang = lang
-        self.punct_pos = ['SYM', 'PUNCT']
-        # Set verbose argument.
-        if 'verbose' in kwargs:
-            self.verbose = kwargs['verbose']
-        else:
-            self.verbose = False
 
         # Check for pre-loaded ELIX file.
         if isinstance(self.filename, str) and self.filename.endswith('elix'):
@@ -199,17 +197,22 @@ class TextElixir:
             print(f'{self.word_count} words have been loaded!')
 
     def search(self, search_string, **kwargs):
-        if 'verbose' in kwargs:
-            return SearchResults(self.filename, search_string, self.word_count, punct_pos=self.punct_pos, verbose=kwargs['verbose'])
-        else:
-            return SearchResults(self.filename, search_string, self.word_count, punct_pos=self.punct_pos)
+        # Parse kwargs
+        text_filter = kwargs['text_filter'] if 'text_filter' in kwargs else None
+        verbose = kwargs['verbose'] if 'verbose' in kwargs else None
+        return SearchResults(self.filename, search_string, self.word_count, punct_pos=self.punct_pos, verbose=verbose, text_filter=text_filter)
 
-    def ngrams(self, size, group_by='lower', bounds=None, sep=' '):
-        return NGrams(self.filename, size, group_by, bounds, sep, punct_pos=self.punct_pos, chunk_num=self.chunk_num)
+    def ngrams(self, size, **kwargs):
+        return NGrams(self.filename, 
+                      size, 
+                      group_by=kwargs['group_by'] if 'group_by' in kwargs else 'lower', 
+                      sep=kwargs['sep'] if 'sep' in kwargs else ' ', 
+                      text_filter=kwargs['text_filter'] if 'text_filter' in kwargs else None, 
+                      punct_pos=self.punct_pos, 
+                      chunk_num=self.chunk_num)
 
 
 ### Features
-#! TODO: Develop NGram List
 # TODO: Make KWIC Lines work based on new tuples for results indices.
 # TODO: Keep stopwords for common languages to remove in collocates?
 # TODO: Calculate TTR.
@@ -240,7 +243,7 @@ class TextElixir:
 # TODO: Change column to POS/TEXT/LOWER/LEMMA
 
 # Tag a corpus by part of speech and lemma.
-elixir = TextElixir('Bethany_Grey_Corpus.elix')
+elixir = TextElixir('Bethany_Grey_Corpus.elix', verbose=True, )
 # Get a SearchResults object that can then get kwic lines, collocates, and sentences.
 
 with open('1grams.txt', 'r', encoding='utf-8') as file_in:
@@ -248,21 +251,33 @@ with open('1grams.txt', 'r', encoding='utf-8') as file_in:
 
 for word in words:
     # ngrams = elixir.ngrams(5, group_by='lower', bounds=None, sep=' ')
-    results = elixir.search(f'{word}_VERB')
-    # Get 5 words before and after a search query occurrence.
-    kwic = results.kwic_lines(before=7, after=7, group_by='text')
-    # Export as a webpage
-    kwic.export_as_html(f'verbs/{word}.html', group_by='text')
+    # results = elixir.search(f'{word}_VERB', text_filter={'cat': 'PHIL'})
+    # Get all ngrams from philosophy
+    ngrams = elixir.ngrams(20)
 
-    sentences = results.sentences()
+    ngrams1 = elixir.ngrams(1, group_by='lower', text_filter={'cat': 'PHIL'})
+    # Get all ngrams from everything BESIDES philosophy
+    ngrams2 = elixir.ngrams(1, group_by='lower', text_filter={'cat': '!PHIL'})
+    
+    keywords1 = ngrams1 / ngrams2
+    keywords2 = ngrams2/ ngrams1
+    ibrk = 0
+    # Get 5 words before and after a search query occurrence.
+    # kwic = results.kwic_lines(before=7, after=7, group_by='text')
+    # # Export as a webpage
+    # kwic.export_as_html(f'verbs/{word}.html', group_by='text')
+
+    # sentences = results.sentences()
     with open(f'sentences/{word}.txt', 'w', encoding='utf-8') as file_out:
-        for sent in sentences.sentence_lines:
-            print(sent, file=file_out)
+        for sent in sentences.sentences:
+            print(sent['cit'], sent['sent'], sep='\t', file=file_out)
+    ibrk = 0
 
     # collocates = results.collocates(before=5, after=5)
     # collocates.export_as_tsv(f'collocates/{word}.tsv')
     ibrk = 0
 
+<<<<<<< HEAD
     # this is a note to say hi
 
 
@@ -288,3 +303,5 @@ for word in words:
 # WordCruncher does not has an easy-to-type search bar.
 # WordCruncher cannot tag a word by lemma or POS.
 # WordCruncher cannot tokenize text by sentence.
+=======
+>>>>>>> ec3cf7e (Add ngram and keyword features. Add filtering on search results and ngrams.)

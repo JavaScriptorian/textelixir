@@ -1,17 +1,23 @@
+from stats import calculate_keywords
+
 import pandas
 class NGrams:
-    def __init__(self, filename, size, group_by, bounds=None, sep=' ', punct_pos='', chunk_num=0):
-        # self.elixir = elixir[~elixir['pos'].isin(['PUNCT', 'SYM'])]
+    def __init__(self, filename, size, **kwargs):
+        # Parse args and kwargs
         self.filename = filename
         self.size = size
-        self.group_by = group_by
-        self.bounds = bounds
-        self.sep = sep
-        self.punct_pos = punct_pos
-        self.chunk_num = chunk_num
+        self.group_by = kwargs['group_by']
+        self.sep = kwargs['sep']
+        self.text_filter = kwargs['text_filter']
+        self.punct_pos = kwargs['punct_pos']
+        self.chunk_num = kwargs['chunk_num']
         self.ngram_references = {}
         self.ngrams = self.calculate_ngrams()
         
+    # This is the cool method for getting keywords
+    def __truediv__(self, other):
+        return calculate_keywords(self.ngrams, other.ngrams)
+
     def calculate_ngrams(self):
         ngram_dict = {}
         self.elixir = pandas.read_csv(self.filename, sep='\t', escapechar='\\', index_col=None, header=0, chunksize=10000, keep_default_na=False)
@@ -20,6 +26,7 @@ class NGrams:
         current_citation = ''
         # Iterate through each chunk of the elix file.
         for block_num, chunk in enumerate(self.elixir):
+            chunk = self.filter_chunk(chunk)
             print(f'\rN-Gram Progress: {round((block_num+1)/self.chunk_num*100, 2)}%', end='')
             # Iterate through each word in the chunk.
             for w in chunk.to_dict('records'):
@@ -53,4 +60,26 @@ class NGrams:
         citation_headers = headers[0:index_of_word_index]
         citation = '/'.join([str(word[i])for i in citation_headers])
         return citation
-        
+
+    # Filters the chunk based on optional filters.
+    def filter_chunk(self, chunk):
+        if self.text_filter == None:
+            return chunk
+        elif isinstance(self.text_filter, dict):
+            filter_index = 0
+            for key, value in self.text_filter.items():
+                if filter_index == 0:
+                    if value.startswith('!'):
+                        new_chunk = chunk[chunk[key] != value[1:]]
+                    else:
+                        new_chunk = chunk[chunk[key] == value]
+                else:
+                    if value.startswith('!'):
+                        new_chunk = new_chunk[new_chunk[key] != value[1:]]
+                    else:
+                        new_chunk = new_chunk[new_chunk[key] == value]
+                filter_index += 1
+            return new_chunk
+        elif isinstance(self.text_filter, list):
+            pass
+            # TODO: This is where a user could input ['Book of Mormon/1 Nephi/1/1'] to specify exact citation filtering.

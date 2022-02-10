@@ -10,6 +10,9 @@ class Sentences:
         if len(self.results_indices) > 0:
             self.sentence_index_ranges = self.calculate_sentence_indices()
             self.calculate_sentence_lines()
+        else:
+            # Leave it empty if there are no search results.
+            self.sentences = []
 
     def calculate_sentence_indices(self):
         self.elixir = pandas.read_csv(self.filename, sep='\t', escapechar='\\', index_col=None, header=0, chunksize=10000)
@@ -66,8 +69,12 @@ class Sentences:
                     sentence_before_range = sentence_before[-1]
 
 
-                sentence_after = self.get_sentence_ocr_after(chunk, block_num, curr_index2, word2_citation)
 
+
+                sentence_after = self.get_sentence_ocr_after(chunk, block_num, curr_index2, word2_citation)
+                # If the search word is the last word in sentence, then set the last word in sentence_after to the word index of the last word in the search query.
+                if len(sentence_after) == 0:
+                    sentence_after.append(curr_index[-1])
                 # Check to see if sentence requires to go into the unfinished_sentences list.
                 if '$BLOCKLENGTH%=' in sentence_after:
                     sentence_after.pop(-1)
@@ -95,6 +102,10 @@ class Sentences:
         filtered_indices = []
         for index in results_indices:
             curr_block_num, word_num = index[-1].split(':')
+            # Remove the ! from the beginning of curr_block_num.
+            if '!' in curr_block_num:
+                curr_block_num = curr_block_num[1:]
+            
             if int(curr_block_num) == block_num:
                 filtered_indices.append(index)
         return filtered_indices
@@ -173,8 +184,6 @@ class Sentences:
 
 
         if next_word_citation == word_citation:
-            if f'{block_num}:{find_index}' == '70:559':
-                ibrk = 0
             sentence_list.append(f'{block_num}:{find_index}')
             sentence_list = self.get_sentence_ocr_after(chunk, block_num, curr_index+1, word_citation, sentence_list)
         else:
@@ -184,10 +193,11 @@ class Sentences:
 
 
     def calculate_sentence_lines(self):
-        self.sentence_lines = []
+        self.sentences = []
         last_chunk = None
 
         full_sentence_index_ranges = self.get_full_index_ranges()
+        
         self.elixir = pandas.read_csv(self.filename, sep='\t', escapechar='\\', index_col=None, header=0, chunksize=10000)
         for block_num, chunk in enumerate(self.elixir):
             curr_indices = self.filter_indices_by_block(full_sentence_index_ranges, block_num)
@@ -242,7 +252,12 @@ class Sentences:
                         sentence_line += f'\t{word}'
                     else:
                         sentence_line += f'{prefix}{word}'
-                self.sentence_lines.append(sentence_line)
+                self.sentences.append(
+                    {   
+                        'cit': self.get_citation(chunk, last_chunk, block_num, curr_index[-1]),
+                        'sent': sentence_line.strip()
+                    }
+                )
 
             last_chunk = chunk
 
