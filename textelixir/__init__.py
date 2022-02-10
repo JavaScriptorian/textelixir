@@ -268,17 +268,16 @@ for word in words:
     # kwic.export_as_html(f'verbs/{word}.html', group_by='text')
 
     # sentences = results.sentences()
-    with open(f'sentences/{word}.txt', 'w', encoding='utf-8') as file_out:
-        for sent in sentences.sentences:
-            print(sent['cit'], sent['sent'], sep='\t', file=file_out)
-    ibrk = 0
+    # with open(f'sentences/{word}.txt', 'w', encoding='utf-8') as file_out:
+    #     for sent in sentences.sentences:
+    #         print(sent['cit'], sent['sent'], sep='\t', file=file_out)
+    # ibrk = 0
 
     # collocates = results.collocates(before=5, after=5)
     # collocates.export_as_tsv(f'collocates/{word}.tsv')
     ibrk = 0
 
-<<<<<<< HEAD
-    # this is a note to say hi
+
 
 
 # Get strongest collocates of a search query occurrence.
@@ -303,5 +302,3 @@ for word in words:
 # WordCruncher does not has an easy-to-type search bar.
 # WordCruncher cannot tag a word by lemma or POS.
 # WordCruncher cannot tokenize text by sentence.
-=======
->>>>>>> ec3cf7e (Add ngram and keyword features. Add filtering on search results and ngrams.)
