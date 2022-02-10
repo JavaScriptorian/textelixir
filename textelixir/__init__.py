@@ -255,12 +255,16 @@ for word in words:
     # Get all ngrams from philosophy
     ngrams = elixir.ngrams(20)
 
-    ngrams1 = elixir.ngrams(1, group_by='lower', text_filter={'cat': 'PHIL'})
-    # Get all ngrams from everything BESIDES philosophy
-    ngrams2 = elixir.ngrams(1, group_by='lower', text_filter={'cat': '!PHIL'})
+    # Book 1 NGrams (Philosophy)
+    ngrams1 = elixir.ngrams(5, group_by='lower', text_filter={'cat': 'PHIL'})
+    # Book 2 NGrams (Not Philosophy)
+    ngrams2 = elixir.ngrams(5, group_by='lower', text_filter={'cat': '!PHIL'})
     
+    # DIVISION BUAHAHAAHA
     keywords1 = ngrams1 / ngrams2
-    keywords2 = ngrams2/ ngrams1
+    keywords2 = ngrams2 / ngrams1
+
+    
     ibrk = 0
     # Get 5 words before and after a search query occurrence.
     # kwic = results.kwic_lines(before=7, after=7, group_by='text')
