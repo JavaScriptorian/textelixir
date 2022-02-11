@@ -2,16 +2,19 @@ import os
 from tokenize import group
 import pandas
 import re
-from pandas.core.algorithms import isin
-from pandas.errors import ParserError
+# from pandas.core.algorithms import isin
+import spacy
 import stanza
 # Change to . when exporting
+from taggers import stanza_tagger
+from taggers import spacy_tagger
 from search_results import SearchResults
 from ngrams import NGrams
         
 class TextElixir:
     def __init__(self, filename=None, lang='en', elixir_filename=None, **kwargs):
         # Parse kwargs
+        self.tagger_option = kwargs['tagger_option'] if 'tagger_option' in kwargs else 'stanza:pos'
         self.punct_pos = kwargs['punct_pos'] if 'punct_pos' in kwargs else ['SYM', 'PUNCT']
         self.verbose = kwargs['verbose'] if 'verbose' in kwargs else True
         # Parse args
@@ -38,11 +41,20 @@ class TextElixir:
             self.read_elixir()
 
     def initialize_tagger(self):
-        try:
-            return stanza.Pipeline(lang=self.lang, processors='tokenize,pos,lemma', verbose=True)
-        except:
-            stanza.download(self.lang)
-            return stanza.Pipeline(lang=self.lang, processors='tokenize,pos,lemma', verbose=False)
+        if 'spacy' in self.tagger_option:
+            try:
+                if 'accurate' in self.tagger_option:
+                    return spacy.load("en_core_web_trf")
+                elif 'efficient' in self.tagger_option:
+                    return spacy.load("en_core_web_sm")
+            except OSError:
+                raise Exception('You need to download the training model for SpaCy before you can use it.\nTo do this, type in "python -m spacy download en_core_web_sm" for efficient model or "python -m spacy download en_core_web_trf" for accurate model.')
+        elif 'stanza' in self.tagger_option:
+            try:
+                return stanza.Pipeline(lang=self.lang, processors='tokenize,pos,lemma', verbose=True)
+            except:
+                stanza.download(self.lang)
+                return stanza.Pipeline(lang=self.lang, processors='tokenize,pos,lemma', verbose=False)
         
 
     def find_indexed_file(self):
@@ -81,7 +93,6 @@ class TextElixir:
         tagger = self.initialize_tagger()
 
         line_index = 0
-        words_tagged = 0
         with open(f'{self.basename}.elix', 'w', encoding='utf-8') as file_out:
             ### PRINT HEADERS FOR ELIX FILE ###
             if self.extension in ['TXT']:
@@ -96,6 +107,8 @@ class TextElixir:
             sentence_index = 0
             ### GET CURRENT LINE TO TAG ###
             for idx in range(0, total_lines):
+                if idx % 10 == 0:
+                    print(f'\rTagging Lines of Text: {idx}', end='')
                 # Get the text of the line.
                 if self.extension == 'TXT':
                     line = data[idx]
@@ -104,74 +117,26 @@ class TextElixir:
                     line = df_line['text']
 
                 line = self.clean_text(line)
-
-                lineData = []
-                startChars = []
-                currentReadIndex = 0
-
                 ### SKIP ANY LINES THAT HAVE NO CONTENT ###
                 if line == '':
                     continue
-
                 line_index += 1
-                for j, sent in enumerate(tagger(line).sentences):
-                    for q, word in enumerate(sent.words):
-                        characterSearch = re.search(
-                            r'start_char=(\d+?)\|end_char=(\d+?)$', word.parent.misc)
-                        startChar = int(characterSearch.group(1))
-                        if startChar not in startChars:
-                            startChars.append(startChar)
-                            duplicate = False
-                        else:
-                            duplicate = True
 
-                        endChar = int(characterSearch.group(2))
-
-                        actualText = line[startChar:endChar]
-                        pos = word.pos
-
-                        lemma = word.lemma
-                        if lemma == None:
-                            lemma = actualText.upper()
-
-                        # If there are underscores in the lemma or actualText, then it needs to be escaped.
-                        actualText = re.sub(r'(?<!\\\\)_', r'\\\\_', actualText)
-                        lemma = re.sub(r'(?<!\\\\)_', r'\\\\_', actualText)
-
-                        if duplicate:
-                            lineData[-1]['pos2'] = pos
-                            lineData[-1]['lemma2'] = lemma
-                        else:
-                            lineData.append({
-                                'text': actualText,
-                                'pos': pos,
-                                'lemma': lemma.upper(),
-                                'prefix_text': line[currentReadIndex:startChar],
-                                'line_index': line_index,
-                                'sentence_index': sentence_index
-                            })
-                            # If it's the first word and first sentence in a line, add 3 spaces (for KWIC purposes)
-                            if j == 0 and q == 0:
-                                if lineData[-1]['prefix_text'] == '':
-                                    lineData[-1]['prefix_text'] == '   '
-                                ibrk = 0
-                            words_tagged += 1
-                            if words_tagged % 100 == 0:
-                                print(f'\rWords Tagged: {words_tagged}', end='')
-                        currentReadIndex = endChar
-                    sentence_index += 1
+                if 'stanza' in self.tagger_option:
+                    line_index, sentence_index, line_data = stanza_tagger(tagger, line, line_index, sentence_index, tagger_option=self.tagger_option)
+                elif 'spacy' in self.tagger_option:
+                    line_index, sentence_index, line_data = spacy_tagger(tagger, line, line_index, sentence_index, tagger_option=self.tagger_option)
+                
 
                 ### OUTPUT WORD DATA ###
-                word_index = 0
-                for w in lineData:
+                for w in line_data:
                     if self.extension == 'TXT':
-                        output_string = f'{w["line_index"]}\t{w["sentence_index"]}\t{word_index}\t{w["text"]}\t{w["text"].lower()}\t{w["pos"]}\t{w["lemma"]}\t{w["prefix_text"]}'
+                        output_string = f'{w["line_index"]}\t{w["sentence_index"]}\t{w["word_index"]}\t{w["text"]}\t{w["text"].lower()}\t{w["pos"]}\t{w["lemma"]}\t{w["prefix_text"]}'
                     elif self.extension == 'TSV':
                         tsv_attributes = "\t".join([self.clean_text(df_line[header]) for header in headers])
-                        output_string = f'{tsv_attributes}\t{w["sentence_index"]}\t{word_index}\t{w["text"]}\t{w["text"].lower()}\t{w["pos"]}\t{w["lemma"]}\t{w["prefix_text"]}'
+                        output_string = f'{tsv_attributes}\t{w["sentence_index"]}\t{w["word_index"]}\t{w["text"]}\t{w["text"].lower()}\t{w["pos"]}\t{w["lemma"]}\t{w["prefix_text"]}'
                     elif self.extension == 'GLOB-TXT':
-                        output_string = f'{df_line["text_file"]}\t{w["sentence_index"]}\t{word_index}\t{w["text"]}\t{w["text"].lower()}\t{w["pos"]}\t{w["lemma"]}\t{w["prefix_text"]}'
-                    word_index += 1
+                        output_string = f'{df_line["text_file"]}\t{w["sentence_index"]}\t{w["word_index"]}\t{w["text"]}\t{w["text"].lower()}\t{w["pos"]}\t{w["lemma"]}\t{w["prefix_text"]}'
                 
                     output_string = re.sub(r'(?<!\\)"', r'\\"', output_string)
                     print(output_string, file=file_out)
@@ -227,7 +192,7 @@ class TextElixir:
 #! TODO: Check for errors when dealing with 3+ words. Do the correct block numbers get output?
 # TODO: Optimize SearchResults.get_previous_words() by returning early if the word is the current search word.
 # TODO: Improve tagging feature to allow some options like ignore_pos, ignore_lemma. Add spacy tagger option
-# TODO: Look into only using a part of stanza that is needed for pos and lemmatization.
+
 # TODO: Make all curly quotes into straight quotes?
 
 ### Visualizations
@@ -243,50 +208,54 @@ class TextElixir:
 # TODO: Change column to POS/TEXT/LOWER/LEMMA
 
 # Tag a corpus by part of speech and lemma.
-elixir = TextElixir('Bethany_Grey_Corpus.elix', verbose=True, )
-# Get a SearchResults object that can then get kwic lines, collocates, and sentences.
+
+
+elixir = TextElixir('Project Gutenberg.elix', verbose=True, tagger_option='spacy:efficient:pos')
 import time
-results = elixir.search('compare')
 t0 = time.time()
-collocates = results.collocates(before=5, after=5, group_by='lemma_pos')
+ngrams = elixir.ngrams(5)
 t1 = time.time()
 total = t1-t0
 print(total)
-ibrk = 0
+# results = elixir.search('have been observed')
+# collocates = results.collocates(before=5, after=5, group_by='lemma_pos')
 
-with open('1grams.txt', 'r', encoding='utf-8') as file_in:
-    words = [i.upper() for i in file_in.read().splitlines()]
 
-for word in words:
-    # ngrams = elixir.ngrams(5, group_by='lower', bounds=None, sep=' ')
-    # results = elixir.search(f'{word}_VERB', text_filter={'cat': 'PHIL'})
-    # Get all ngrams from philosophy
+# ibrk = 0
 
-    # Book 1 NGrams (Philosophy)
-    ngrams1 = elixir.ngrams(5, group_by='lower', text_filter={'cat': 'PHIL'})
-    # Book 2 NGrams (Not Philosophy)
-    ngrams2 = elixir.ngrams(5, group_by='lower', text_filter={'cat': '!PHIL'})
+# with open('1grams.txt', 'r', encoding='utf-8') as file_in:
+#     words = [i.upper() for i in file_in.read().splitlines()]
+
+# for word in words:
+#     # ngrams = elixir.ngrams(5, group_by='lower', bounds=None, sep=' ')
+#     # results = elixir.search(f'{word}_VERB', text_filter={'cat': 'PHIL'})
+#     # Get all ngrams from philosophy
+
+#     # Book 1 NGrams (Philosophy)
+#     ngrams1 = elixir.ngrams(5, group_by='lower', text_filter={'cat': 'PHIL'})
+#     # Book 2 NGrams (Not Philosophy)
+#     ngrams2 = elixir.ngrams(5, group_by='lower', text_filter={'cat': '!PHIL'})
     
-    # DIVISION BUAHAHAAHA
-    keywords1 = ngrams1 / ngrams2
-    keywords2 = ngrams2 / ngrams1
+#     # DIVISION BUAHAHAAHA
+#     keywords1 = ngrams1 / ngrams2
+#     keywords2 = ngrams2 / ngrams1
 
     
-    ibrk = 0
-    # Get 5 words before and after a search query occurrence.
-    # kwic = results.kwic_lines(before=7, after=7, group_by='text')
-    # # Export as a webpage
-    # kwic.export_as_html(f'verbs/{word}.html', group_by='text')
+#     ibrk = 0
+#     # Get 5 words before and after a search query occurrence.
+#     # kwic = results.kwic_lines(before=7, after=7, group_by='text')
+#     # # Export as a webpage
+#     # kwic.export_as_html(f'verbs/{word}.html', group_by='text')
 
-    # sentences = results.sentences()
-    # with open(f'sentences/{word}.txt', 'w', encoding='utf-8') as file_out:
-    #     for sent in sentences.sentences:
-    #         print(sent['cit'], sent['sent'], sep='\t', file=file_out)
-    # ibrk = 0
+#     # sentences = results.sentences()
+#     # with open(f'sentences/{word}.txt', 'w', encoding='utf-8') as file_out:
+#     #     for sent in sentences.sentences:
+#     #         print(sent['cit'], sent['sent'], sep='\t', file=file_out)
+#     # ibrk = 0
 
-    # collocates = results.collocates(before=5, after=5)
-    # collocates.export_as_tsv(f'collocates/{word}.tsv')
-    ibrk = 0
+#     # collocates = results.collocates(before=5, after=5)
+#     # collocates.export_as_tsv(f'collocates/{word}.tsv')
+#     ibrk = 0
 
 
 
@@ -308,6 +277,7 @@ for word in words:
 # Search for a specific pos on a word/lemma
 # Export TXT of collocates
 # Rewrite glob-txt code.
+# TODO: Look into only using a part of stanza that is needed for pos and lemmatization.
 
 # WordCruncher can tokenize text by word.
 # WordCruncher does not has an easy-to-type search bar.
