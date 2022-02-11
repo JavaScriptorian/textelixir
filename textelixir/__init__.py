@@ -245,6 +245,14 @@ class TextElixir:
 # Tag a corpus by part of speech and lemma.
 elixir = TextElixir('Bethany_Grey_Corpus.elix', verbose=True, )
 # Get a SearchResults object that can then get kwic lines, collocates, and sentences.
+import time
+results = elixir.search('compare')
+t0 = time.time()
+collocates = results.collocates(before=5, after=5, group_by='lemma_pos')
+t1 = time.time()
+total = t1-t0
+print(total)
+ibrk = 0
 
 with open('1grams.txt', 'r', encoding='utf-8') as file_in:
     words = [i.upper() for i in file_in.read().splitlines()]
@@ -253,7 +261,6 @@ for word in words:
     # ngrams = elixir.ngrams(5, group_by='lower', bounds=None, sep=' ')
     # results = elixir.search(f'{word}_VERB', text_filter={'cat': 'PHIL'})
     # Get all ngrams from philosophy
-    ngrams = elixir.ngrams(20)
 
     # Book 1 NGrams (Philosophy)
     ngrams1 = elixir.ngrams(5, group_by='lower', text_filter={'cat': 'PHIL'})
