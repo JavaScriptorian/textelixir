@@ -1,3 +1,5 @@
+import csv
+import json
 import os
 from tokenize import group
 import pandas
@@ -22,6 +24,7 @@ class TextElixir:
         self.lang = lang
 
         # Check for pre-loaded ELIX file.
+        # TODO: This will be broken when I change it to a folder.
         if isinstance(self.filename, str) and self.filename.endswith('elix'):
             self.read_elixir()
         else:
@@ -30,25 +33,29 @@ class TextElixir:
                 self.filename = filename
                 self.extension = 'GLOB-' + re.search(r'\.([^\.]+?)$', os.path.basename(filename[0])).group(1).upper()
                 self.basename = 'Glob Elixir'
-                self.elixir_filename = f'{self.basename}.elix'
+                self.elixir_filename = f'{self.basename}/corpus.elix'
             else:
                 self.extension = re.search(r'\.([^\.]+?)$', os.path.basename(filename)).group(1).upper()
                 self.basename = re.sub(r'\.[^\.]+?$', r'', os.path.basename(filename))
-                self.elixir_filename = f'{self.basename}.elix'
+                self.elixir_filename = f'{self.basename}/corpus.elix'
             if self.find_indexed_file() == False:
                 self.create_indexed_file()
+                self.create_word_list()
             self.filename = self.elixir_filename
             self.read_elixir()
 
     def initialize_tagger(self):
         if 'spacy' in self.tagger_option:
+            # Access tagger table
+            with open('tables/spacy_taggers.json', 'r', encoding='utf-8') as file_in:
+                tagger_dict = json.loads(file_in.read())
             try:
                 if 'accurate' in self.tagger_option:
-                    return spacy.load("en_core_web_trf")
+                    return spacy.load(tagger_dict[self.lang]['spacy:accurate'])
                 elif 'efficient' in self.tagger_option:
-                    return spacy.load("en_core_web_sm")
+                    return spacy.load(tagger_dict[self.lang]['spacy:efficient'])
             except OSError:
-                raise Exception('You need to download the training model for SpaCy before you can use it.\nTo do this, type in "python -m spacy download en_core_web_sm" for efficient model or "python -m spacy download en_core_web_trf" for accurate model.')
+                raise Exception(f'You need to download the training model for SpaCy before you can use it.\n See https://spacy.io/models for how to download a tagger.')
         elif 'stanza' in self.tagger_option:
             try:
                 return stanza.Pipeline(lang=self.lang, processors='tokenize,pos,lemma', verbose=True)
@@ -58,11 +65,14 @@ class TextElixir:
         
 
     def find_indexed_file(self):
-        if os.path.exists(f'{self.basename}.elix'):
+        if os.path.exists(f'{self.basename}/corpus.elix'):
             return True
         return False
 
     def create_indexed_file(self):
+        # Create folder that will contain ELIX.
+        if not os.path.exists(self.basename):
+            os.mkdir(self.basename)
         if self.extension == 'TXT':
             with open(self.filename, 'r', encoding='utf-8') as file_in:
                 data = file_in.read().splitlines()
@@ -93,7 +103,7 @@ class TextElixir:
         tagger = self.initialize_tagger()
 
         line_index = 0
-        with open(f'{self.basename}.elix', 'w', encoding='utf-8') as file_out:
+        with open(f'{self.basename}/corpus.elix', 'w', encoding='utf-8') as file_out:
             ### PRINT HEADERS FOR ELIX FILE ###
             if self.extension in ['TXT']:
                 print(f'line_index\tsent_index\tword_index\ttext\tlower\tpos\tlemma\tprefix', file=file_out)
@@ -108,7 +118,7 @@ class TextElixir:
             ### GET CURRENT LINE TO TAG ###
             for idx in range(0, total_lines):
                 if idx % 10 == 0:
-                    print(f'\rTagging Lines of Text: {idx}', end='')
+                    print(f'\rTagging Lines of Text: {idx} ({round(idx/total_lines, 1)}%)', end='')
                 # Get the text of the line.
                 if self.extension == 'TXT':
                     line = data[idx]
@@ -141,7 +151,33 @@ class TextElixir:
                     output_string = re.sub(r'(?<!\\)"', r'\\"', output_string)
                     print(output_string, file=file_out)
 
+    def create_word_list(self):
+        elixir = pandas.read_csv(f'{self.basename}/corpus.elix', sep='\t', escapechar='\\', index_col=None, header=0, chunksize=10000, keep_default_na=False)
+        # word_tracking will contain each words. Once it hits correct size or end of sentence, then reset the words.
+        categories = ['text', 'lower', 'lemma', 'pos']
+        word_dict = {}
+        print('Adding Words to Frequency Word List...')
+        # Iterate through each chunk of the elix file.
+        for chunk in elixir:
+            for w in chunk.to_dict('records'):
+                
+                key = '\t'.join([w[i]for i in categories])
+                if key not in word_dict:
+                    word_dict[key] = 0
 
+                word_dict[key] += 1
+
+        print('Sorting Frequency Word List...')
+        sorted_dict = sorted(word_dict.items(), key=lambda item: item[1], reverse=True)
+
+        with open(f'{self.basename}/word_frequency.elix', 'w', newline='') as csvfile:
+            writer = csv.writer(csvfile, 
+                                delimiter='\t',
+                                quotechar='|',
+                                quoting=csv.QUOTE_MINIMAL)
+            writer.writerow(['text', 'lower', 'lemma', 'pos', 'freq'])
+            for k, v in sorted_dict:
+                writer.writerow([*k.split('\t'), v])
 
     def clean_text(self, string):
         string = str(string).replace(u'\xa0', u' ')
@@ -167,6 +203,17 @@ class TextElixir:
         verbose = kwargs['verbose'] if 'verbose' in kwargs else None
         return SearchResults(self.filename, search_string, self.word_count, punct_pos=self.punct_pos, verbose=verbose, text_filter=text_filter)
 
+    # Calculates the word frequency list.
+    def word_frequency(self, **kwargs):
+        return NGrams(self.filename,
+                      size=1,
+                      group_by=kwargs['group_by'] if 'group_by' in kwargs else 'lower', 
+                      sep=kwargs['sep'] if 'sep' in kwargs else ' ', 
+                      text_filter=kwargs['text_filter'] if 'text_filter' in kwargs else None,
+                      punct_pos=self.punct_pos, 
+                      chunk_num=self.chunk_num)
+
+    # Calculates the ngram frequency list.
     def ngrams(self, size, **kwargs):
         return NGrams(self.filename, 
                       size, 
@@ -175,111 +222,3 @@ class TextElixir:
                       text_filter=kwargs['text_filter'] if 'text_filter' in kwargs else None, 
                       punct_pos=self.punct_pos, 
                       chunk_num=self.chunk_num)
-
-
-### Features
-# TODO: Make KWIC Lines work based on new tuples for results indices.
-# TODO: Keep stopwords for common languages to remove in collocates?
-# TODO: Calculate TTR.
-# TODO: Develop Moving Average Type-To-Token Ratio.
-#! TODO: Frequency By Section and 10ths.
-# TODO: Search for multiple pos at once. /NOUN|PROPN/
-# TODO: Search for *.
-# TODO: Search for ?.
-
-
-### Optimization
-#! TODO: Check for errors when dealing with 3+ words. Do the correct block numbers get output?
-# TODO: Optimize SearchResults.get_previous_words() by returning early if the word is the current search word.
-# TODO: Improve tagging feature to allow some options like ignore_pos, ignore_lemma. Add spacy tagger option
-
-# TODO: Make all curly quotes into straight quotes?
-
-### Visualizations
-# TODO: Create CSV/TSV export for KWIC Lines
-# TODO: Create JSON export for KWIC lines
-# TODO: Create HTML export for KWIC lines
-# TODO: Create CSV/TSV/TXT export for n-gram frequency 
-
-# TODO: Add headers to the top of KWIC HTML table
-# TODO: Copy all button
-# TODO: Copy row buttons
-# TODO: Sort table by column
-# TODO: Change column to POS/TEXT/LOWER/LEMMA
-
-# Tag a corpus by part of speech and lemma.
-
-
-elixir = TextElixir('Project Gutenberg.elix', verbose=True, tagger_option='spacy:efficient:pos')
-import time
-t0 = time.time()
-ngrams = elixir.ngrams(5)
-t1 = time.time()
-total = t1-t0
-print(total)
-# results = elixir.search('have been observed')
-# collocates = results.collocates(before=5, after=5, group_by='lemma_pos')
-
-
-# ibrk = 0
-
-# with open('1grams.txt', 'r', encoding='utf-8') as file_in:
-#     words = [i.upper() for i in file_in.read().splitlines()]
-
-# for word in words:
-#     # ngrams = elixir.ngrams(5, group_by='lower', bounds=None, sep=' ')
-#     # results = elixir.search(f'{word}_VERB', text_filter={'cat': 'PHIL'})
-#     # Get all ngrams from philosophy
-
-#     # Book 1 NGrams (Philosophy)
-#     ngrams1 = elixir.ngrams(5, group_by='lower', text_filter={'cat': 'PHIL'})
-#     # Book 2 NGrams (Not Philosophy)
-#     ngrams2 = elixir.ngrams(5, group_by='lower', text_filter={'cat': '!PHIL'})
-    
-#     # DIVISION BUAHAHAAHA
-#     keywords1 = ngrams1 / ngrams2
-#     keywords2 = ngrams2 / ngrams1
-
-    
-#     ibrk = 0
-#     # Get 5 words before and after a search query occurrence.
-#     # kwic = results.kwic_lines(before=7, after=7, group_by='text')
-#     # # Export as a webpage
-#     # kwic.export_as_html(f'verbs/{word}.html', group_by='text')
-
-#     # sentences = results.sentences()
-#     # with open(f'sentences/{word}.txt', 'w', encoding='utf-8') as file_out:
-#     #     for sent in sentences.sentences:
-#     #         print(sent['cit'], sent['sent'], sep='\t', file=file_out)
-#     # ibrk = 0
-
-#     # collocates = results.collocates(before=5, after=5)
-#     # collocates.export_as_tsv(f'collocates/{word}.tsv')
-#     ibrk = 0
-
-
-
-
-# Get strongest collocates of a search query occurrence.
-# collocates = results.collocates(before=5, after=5, group_by='lemma')
-# Output strongest collocates to an HTML table.
-# collocates.export_as_html('test.html')
-# Perform collocates
-# collocates = results.find_collocates(before=0, after=5, group_by='lower_pos', mi_threshold=4, sample_size_threshold=2)
-# for friend in collocates.friends:
-#     print(friend)
-
-
-### Done
-# Make it possible to see collocate friends to left and right.
-# Handle collocate duplicates. Example: ETS occurs 2 times, and TEST occurs 3 times in a 5-word radius.
-# Double-check that the numbers for MI are correct. Still getting a lot of stopwords in it.
-# Search for a specific pos on a word/lemma
-# Export TXT of collocates
-# Rewrite glob-txt code.
-# TODO: Look into only using a part of stanza that is needed for pos and lemmatization.
-
-# WordCruncher can tokenize text by word.
-# WordCruncher does not has an easy-to-type search bar.
-# WordCruncher cannot tag a word by lemma or POS.
-# WordCruncher cannot tokenize text by sentence.
