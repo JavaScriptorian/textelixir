@@ -1,6 +1,6 @@
 import pandas
 import re
-from word import Word
+
 from kwic import KWIC
 from collocates import Collocates
 from sentences import Sentences

@@ -51,7 +51,9 @@ class NGrams:
                     # Pop the first word in word_tracking in preparation for the next word.
                     word_tracking.pop(0)
         
+        print(f'\rSorting N-Grams by Frequency...          ', end='')
         sorted_ngram_dict = sorted(ngram_dict.items(), key=lambda t: (-t[1], t[0]))
+        print('\n')
         return sorted_ngram_dict
 
     def get_citation(self, chunk, word):
