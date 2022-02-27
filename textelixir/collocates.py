@@ -3,6 +3,9 @@ import json
 from math import log2
 import pandas
 import re
+from .scripts import copy_btn
+from .scripts import sort_alpha
+from .scripts import sort_num
 
 class Collocates:
     def __init__(self, filename, results_indices, before, after, word_count, group_by, mi_threshold=3, sample_size_threshold=2, search_string=''):
@@ -372,14 +375,9 @@ class Collocates:
             print(table, file=file_out)
                                   
             # Print out scripts for sorting and copying. 
-            with open('./scripts/sort_alpha.js', 'r', encoding='utf-8') as scriptAlpha:
-                print(f'<script>{scriptAlpha.read()}</script>', file=file_out)
-
-            with open('./scripts/sort_num.js', 'r', encoding='utf-8') as scriptNum: 
-                print(f'<script>{scriptNum.read()}</script>', file=file_out)
-
-            with open('./scripts/copy_btn.js', 'r', encoding='utf-8') as btnText:
-                print(f'<script>{btnText.read()}</script>', file=file_out)
+            print(f'<script>{sort_alpha}</script>', file=file_out)
+            print(f'<script>{sort_num}</script>', file=file_out)
+            print(f'<script>{copy_btn}</script>', file=file_out)
 
             # End output of HTML file.
             print('</body></html>', file=file_out)

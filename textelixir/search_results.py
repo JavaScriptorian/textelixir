@@ -1,28 +1,38 @@
+from numpy import isin
 import pandas
 import re
 
-from kwic import KWIC
-from collocates import Collocates
-from sentences import Sentences
+from .kwic import KWIC
+from .collocates import Collocates
+from .sentences import Sentences
+from .vocabdist import VocabDist
 
 class SearchResults:
     def __init__(self, filename, search_string, word_count, **kwargs):
         
         # Parse kwargs
-        self.punct_pos = kwargs['punct_pos'] if 'punct_pos' in kwargs else ['PUNCT']
-        self.verbose = kwargs['verbose'] if 'verbose' in kwargs else True
-        self.text_filter = kwargs['text_filter'] if 'text_filter' in kwargs else None
-
+        self.punct_pos = kwargs['punct_pos']
+        self.verbose = kwargs['verbose']
+        self.text_filter = kwargs['text_filter']
+        # Check for regex within text_filter
+        if self.text_filter and 'is_regex' in self.text_filter:
+            self.filter_regex = self.text_filter['is_regex']
+            del self.text_filter['is_regex']
+        else:
+            self.filter_regex = False
+        self.regex = kwargs['regex']
+        self.search_string = search_string
+        self.wildcard = self.check_string_for_wildcards()
         self.filename = filename
         self.word_count = word_count    # Total words in corpus
         # If the search_string is just one string, then get the results_indices for that word.
-        if isinstance(search_string, str):
-            self.search_string = search_string
+        if isinstance(search_string, str):     
             self.results_indices = self.get_results_indices()
         elif isinstance(search_string, list):
-            self.search_string = search_string
             self.results_totals = self.get_results_indices()
 
+    def check_string_for_wildcards(self):
+        return True if ('*' in self.search_string or '?' in self.search_string) and self.regex == False else False
 
     def get_results_indices(self):
         # Determine the search_type: word or phrase
@@ -60,7 +70,6 @@ class SearchResults:
                     # Set default distance to 1.
                     distance = 1
                 else:
-                    
                     self.elixir = pandas.read_csv(self.filename, sep='\t', escapechar='\\', index_col=None, header=0, chunksize=10000)
                     new_indices = []
                     for block_num, chunk in enumerate(self.elixir):
@@ -154,9 +163,31 @@ class SearchResults:
                 word_specs = [re.sub(r'^/(.+?)/$', r'\1', w) for w in re.split(r'(?<!\\)_', search_word)]
                 for wt_idx, wt in enumerate(word_type):
                     if wt_idx == 0:
-                        found_words = chunk[chunk[wt] == word_specs[wt_idx]]
+                        # POSITIVE REGEX HANDLER
+                        if self.regex:
+                            value = word_specs[wt_idx]
+                            found_words = chunk[chunk[wt].str.match(value)]
+                        # POSITIVE WILDCARD HANDLER
+                        elif self.wildcard:
+                            value = word_specs[wt_idx].replace('*', '.*').replace('?', '.')
+                            found_words = chunk[chunk[wt].str.match(value, na=False)]
+                        # POSITIVE EXACT MATCH HANDLER
+                        else:
+                            value = word_specs[wt_idx]
+                            found_words = chunk[chunk[wt] == value]
                     else:
-                        found_words = found_words[found_words[wt] == word_specs[wt_idx]]
+                        # POSITIVE REGEX HANDLER
+                        if self.regex:
+                            value = word_specs[wt_idx]
+                            found_words = found_words[chunk[wt].str.match(value)]
+                        # POSITIVE WILDCARD HANDLER
+                        elif self.wildcard:
+                            value = word_specs[wt_idx].replace('*', '.*').replace('?', '.')
+                            found_words = found_words[chunk[wt].str.match(value)]
+                        # POSITIVE EXACT MATCH HANDLER
+                        else:
+                            value = word_specs[wt_idx]
+                            found_words = found_words[found_words[wt] == value]
                 for word in found_words.to_dict('index'):
                     find_index = word-(block_num*10000)
                     results.append((f'{block_num}:{find_index}',))
@@ -164,6 +195,7 @@ class SearchResults:
             elif isinstance(search_word, list):
                 for word in search_word:
                     word_specs = [re.sub(r'^/(.+?)/$', r'\1', w) for w in re.split(r'(?<!\\)_', word)]
+                    # TODO: HANLDE WILDCARDS HERE
                     for wt_idx, wt in enumerate(word_type):
                         if wt_idx == 0:
                             found_words = chunk[chunk[wt] == word_specs[wt_idx]]
@@ -223,21 +255,77 @@ class SearchResults:
         elif isinstance(self.text_filter, dict):
             filter_index = 0
             for key, value in self.text_filter.items():
-                if filter_index == 0:
-                    if value.startswith('!'):
-                        new_chunk = chunk[chunk[key] != value[1:]]
+                # Change value:string to value:list
+                if isinstance(value, str):
+                    value_list = [value]
+                elif isinstance(value, list):
+                    value_list = value
+
+                self.filter_wildcard = True if ('*' in value or '?' in value) and (self.filter_regex == False) else False
+                
+                for value in value_list:
+                    # If it's the first filter being applied.
+                    if filter_index == 0:
+                        # Look for everything excluding this one item.
+                        if value.startswith('!'):
+                            value = value[1:]
+                            # NEGATIVE REGEX HANDLER
+                            if self.filter_regex:
+                                new_chunk = chunk[~chunk[key].str.match(value)]
+                            # NEGATIVE WILDCARD HANDLER
+                            elif self.filter_wildcard:
+                                value = value.replace('*', '.*').replace('?', '.')
+                                new_chunk = chunk[~chunk[key].str.match(value)]
+                            # NEGATIVE EXACT MATCH HANDLER
+                            else:
+                                new_chunk = chunk[chunk[key] != value]
+                            
+                        # Look for everything including this item.
+                        else:
+                            # POSITIVE REGEX HANDLER
+                            if self.filter_regex:
+                                new_chunk = chunk[chunk[key].str.match(value)]
+                            # POSITIVE WILDCARD HANDLER
+                            elif self.filter_wildcard:
+                                value = value.replace('*', '.*').replace('?', '.')
+                                new_chunk = chunk[chunk[key].str.match(value)]
+                            # POSITIVE EXACT MATCH HANDLER
+                            else:
+                                new_chunk = chunk[chunk[key] == value]
+                    # If it's not the first filter being applied.
                     else:
-                        new_chunk = chunk[chunk[key] == value]
-                else:
-                    if value.startswith('!'):
-                        new_chunk = new_chunk[new_chunk[key] != value[1:]]
-                    else:
-                        new_chunk = new_chunk[new_chunk[key] == value]
-                filter_index += 1
+                        if value.startswith('!'):
+                            value = value[1:]
+                            if new_chunk.shape[0] > 0:
+                                ibrk = 0
+                            # NEGATIVE REGEX HANDLER
+                            if self.filter_regex:
+                                new_chunk = new_chunk[~new_chunk[key].str.match(value)]
+                            # NEGATIVE WILDCARD HANDLER
+                            elif self.filter_wildcard:
+                                value = value.replace('*', '.*').replace('?', '.')
+                                new_chunk = new_chunk[~new_chunk[key].str.match(value)]
+                            # NEGATIVE EXACT MATCH HANDLER
+                            else:
+                                new_chunk = new_chunk[new_chunk[key] != value]
+                        else:
+                            # POSITIVE REGEX HANDLER
+                            if self.filter_regex:
+                                new_chunk = new_chunk[new_chunk[key].str.match(value)]
+                            elif self.wildcard:
+                                pass
+                            # EXACT MATCH HANDLER
+                            else:
+                                new_chunk = new_chunk[new_chunk[key] == value]
+                    filter_index += 1
             return new_chunk
         elif isinstance(self.text_filter, list):
             pass
             # TODO: This is where a user could input ['Book of Mormon/1 Nephi/1/1'] to specify exact citation filtering.
+
+    ### VOCABULARY DISTRIBUTION HANDLER
+    def vocab_distribution(self, group_by):
+        return VocabDist(self.filename, group_by)
 
     ### KWIC LINES HANDLER
     def kwic_lines(self, before=5, after=5, group_by='lower'):
@@ -264,9 +352,12 @@ class SearchResults:
         print('Getting totals for each collocating word.')
         totals = {}
         words = [word for word, value in samples.items()]
-        totals = SearchResults(self.filename, words, self.word_count, punct_pos=self.punct_pos, verbose=False ).results_totals
+        totals = SearchResults(self.filename, words, self.word_count, punct_pos=self.punct_pos, verbose=False, text_filter=None, regex=False).results_totals
         return totals
 
     ### SENTENCES HANDLER
     def sentences(self, group_by='text'):
         return Sentences(self.filename, self.results_indices, group_by=group_by, search_string=self.search_string)
+
+    ### Frequency Distribution
+    # 
