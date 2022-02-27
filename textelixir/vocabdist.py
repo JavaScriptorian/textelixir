@@ -133,5 +133,8 @@ class VocabDist:
         fig = px.bar(df, x=x_name, y=y_name, title=chart_title)
         fig.write_image(filename)
 
-    def export_as_txt(self):
-        pass
+    def export_as_txt(self, filename):
+        with open(filename, 'w', encoding='utf-8') as file_out:
+            print(f'citation\tfreq\tnormFreq\texpected\ttotal\tpercent', file=file_out)
+            for k, v in self.data.items():
+                print(f'{k}\t{v["freq"]}\t{v["normFreq"]}\t{v["expected"]}\t{v["total"]}\t{v["percent"]}', file=file_out)
