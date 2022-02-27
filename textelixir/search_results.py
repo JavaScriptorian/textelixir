@@ -324,8 +324,9 @@ class SearchResults:
             # TODO: This is where a user could input ['Book of Mormon/1 Nephi/1/1'] to specify exact citation filtering.
 
     ### VOCABULARY DISTRIBUTION HANDLER
-    def vocab_distribution(self, group_by):
-        return VocabDist(self.filename, group_by)
+    def vocab_distribution(self, **kwargs):
+        group_by = kwargs['group_by'] if 'group_by' in kwargs else 0
+        return VocabDist(self.filename, group_by, self.results_indices, self.punct_pos, self.search_string)
 
     ### KWIC LINES HANDLER
     def kwic_lines(self, before=5, after=5, group_by='lower'):

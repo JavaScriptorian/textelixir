@@ -189,7 +189,7 @@ class TextElixir:
         self.chunk_num = 0
         for chunk in self.elixir:
             self.chunk_num += 1
-            normal_words = chunk[chunk['pos'] != 'PUNCT']
+            normal_words = chunk[~chunk['pos'].isin(self.punct_pos)]
             self.word_count += normal_words.shape[0]
         if self.verbose:
             print(f'{self.word_count} words have been loaded!')

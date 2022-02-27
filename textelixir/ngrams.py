@@ -37,9 +37,13 @@ class NGrams:
                 citation = self.get_citation(chunk, w)
                 # If the citation is not the same as the current_citation, then we've hit a new sentence.
                 # Words should not be in an ngram from different sentences.
-                if citation != current_citation:
-                    word_tracking = []
-                    current_citation = citation
+
+
+                # if citation != current_citation:
+                    # word_tracking = []
+                    # current_citation = citation
+
+                    
                 # Append the next word to word_tracking
                 word_tracking.append(w[self.group_by])
                 
