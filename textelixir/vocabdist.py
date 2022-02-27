@@ -86,7 +86,7 @@ class VocabDist:
     def determine_column_header(self, chunk):
         headers = list(chunk.columns.values)
         if isinstance(self.group_by, int):
-            return [headers[0]]
+            return [headers[self.group_by]]
         elif isinstance(self.group_by, str):
             if '/' in self.group_by:
                 return  self.group_by.split('/')
@@ -104,6 +104,7 @@ class VocabDist:
     def show_chart(self, output_metric='normFreq', **kwargs):
         x_name = kwargs['x'] if 'x' in kwargs else self.group_by
         y_name = kwargs['y'] if 'y' in kwargs else output_metric
+        chart_title = kwargs['chart_title'] if 'chart_title' in kwargs else f'Vocabulary Distribution for "{self.search_string}"'
         x = []
         y = []
 
@@ -111,15 +112,26 @@ class VocabDist:
             x.append(k)
             y.append(v[output_metric])
         df = pandas.DataFrame(list(zip(x, y)), columns =[x_name, y_name])
-        fig = px.bar(df, x=x_name, y=y_name, title=f'Vocabulary Distribution for "{self.search_string}"')
+        fig = px.bar(df, x=x_name, y=y_name, title=chart_title)
         fig.show()
 
         # df = pd.DataFrame(list(zip(x, y)),
         #     columns =[self.group_by, 'Normalized Frequency'])
 
 
-    def save_chart(self, filename):
-        pass
+    def save_chart(self, filename, output_metric='normFreq', **kwargs):
+        x_name = kwargs['x'] if 'x' in kwargs else self.group_by
+        y_name = kwargs['y'] if 'y' in kwargs else output_metric
+        chart_title = kwargs['chart_title'] if 'chart_title' in kwargs else f'Vocabulary Distribution for "{self.search_string}"'
+        x = []
+        y = []
+
+        for k, v in self.data.items():
+            x.append(k)
+            y.append(v[output_metric])
+        df = pandas.DataFrame(list(zip(x, y)), columns =[x_name, y_name])
+        fig = px.bar(df, x=x_name, y=y_name, title=chart_title)
+        fig.write_image(filename)
 
     def export_as_txt(self):
         pass

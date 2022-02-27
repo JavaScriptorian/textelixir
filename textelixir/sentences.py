@@ -305,5 +305,10 @@ class Sentences:
             full_sentence_index_ranges.append(sentence_ocr_indices)
         return full_sentence_index_ranges
 
+    def export_as_txt(self, filename):
+        with open(filename, 'w', encoding='utf-8') as file_out:
+            for s in self.sentences:
+                print(f'{s["cit"]}\t{s["sent"]}', file=file_out)
+
     def export_as_html(self, filename, group_by='text', ignore_punctuation=False):
-        ibrk = 0
+        assert Exception('Sorry, this is not ready yet!')
