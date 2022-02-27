@@ -1,5 +1,3 @@
-from re import search
-from numpy import unicode_
 import pandas
 
 class KWIC:
@@ -7,6 +5,8 @@ class KWIC:
         self.filename = filename
         self.results_indices = results_indices
         self.results_count = len(results_indices)
+        if self.results_count == 0:
+            return None
         self.before = before
         self.after = after
         self.group_by = group_by
@@ -76,7 +76,10 @@ class KWIC:
         # Check for any unfinished KWIC lines left untouched at the end of the corpus.
         while len(unfinished_kwic) > 0:
             unf = unfinished_kwic[0]
-            kwic_index_ranges.append((unf['before_range'], unf['search_words'], unf['after'][-1]))
+            if len(unf['after']) == 0:
+                kwic_index_ranges.append((unf['before_range'], unf['search_words'], unf['search_words'][-1]))
+            else:
+                kwic_index_ranges.append((unf['before_range'], unf['search_words'], unf['after'][-1]))
             unfinished_kwic.pop(0)
 
 
@@ -95,6 +98,8 @@ class KWIC:
             for curr_index in curr_indices:
                 dataframe_words_list = []
                 for word in curr_index:
+                    if '229:5438' in word:
+                        ibrk = 0
                     word_block, word_idx = word.split(':')
                     # An exclamation point is added to the word_block if it's a search query word. The is_search_query_word flag helps with formatting later.
                     if word_block.startswith('!'):
@@ -141,7 +146,7 @@ class KWIC:
                         kwic_line += f'\t{word}'
                     else:
                         kwic_line += f'{prefix}{word}'
-                self.kwic_lines.append(kwic_line)
+                self.kwic_lines.append(kwic_line.strip())
 
             last_chunk = chunk
 
@@ -198,6 +203,8 @@ class KWIC:
         filtered_indices = []
         for index in results_indices:
             curr_block_num, word_num = index[-1].split(':')
+            if curr_block_num.startswith('!'):
+                curr_block_num = curr_block_num[1:]
             if int(curr_block_num) == block_num:
                 filtered_indices.append(index)
         return filtered_indices
@@ -270,6 +277,9 @@ class KWIC:
         return kwic_list
 
     def export_as_html(self, output_filename, group_by='text', ignore_punctuation=False):
+        if self.results_count == 0:
+            print('Cannot export KWIC lines when there are no results.')
+            return
         text = f'<html><head><title>{self.search_string} KWIC Lines</title><link href="https://cdn.jsdelivr.net/npm/halfmoon@1.1.1/css/halfmoon-variables.min.css" rel="stylesheet" /><style>.table td, .table th {{padding: 0;}} .punct {{ color: #9c9c9c;}}</style></head><body><div class="container"><h1>KWIC Lines for "{self.search_string}"</h1><p>Click headers to sort</p>'
         table = '<table class="table" id="table">\n'
         

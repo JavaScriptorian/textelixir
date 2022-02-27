@@ -1,4 +1,4 @@
-from stats import calculate_keywords
+from .stats import calculate_keywords
 
 import pandas
 class NGrams:

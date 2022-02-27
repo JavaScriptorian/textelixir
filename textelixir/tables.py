@@ -1,4 +1,4 @@
-{
+spacy_taggers = {
     "en": {
         "spacy:efficient": "en_core_web_sm",
         "spacy:accurate": "en_core_web_trf"

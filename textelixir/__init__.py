@@ -1,23 +1,20 @@
 import csv
 import json
 import os
-from tokenize import group
 import pandas
 import re
-# from pandas.core.algorithms import isin
-import spacy
-import stanza
 # Change to . when exporting
-from taggers import stanza_tagger
-from taggers import spacy_tagger
-from search_results import SearchResults
-from ngrams import NGrams
+from .taggers import stanza_tagger
+from .taggers import spacy_tagger
+from .search_results import SearchResults
+from .ngrams import NGrams
+from .tables import spacy_taggers
         
 class TextElixir:
     def __init__(self, filename=None, lang='en', elixir_filename=None, **kwargs):
         # Parse kwargs
         self.tagger_option = kwargs['tagger_option'] if 'tagger_option' in kwargs else 'stanza:pos'
-        self.punct_pos = kwargs['punct_pos'] if 'punct_pos' in kwargs else ['SYM', 'PUNCT']
+        self.punct_pos = kwargs['punct_pos'] if 'punct_pos' in kwargs else ['SYM', 'PUNCT', 'SPACE']
         self.verbose = kwargs['verbose'] if 'verbose' in kwargs else True
         # Parse args
         self.filename = filename
@@ -25,7 +22,8 @@ class TextElixir:
 
         # Check for pre-loaded ELIX file.
         # TODO: This will be broken when I change it to a folder.
-        if isinstance(self.filename, str) and self.filename.endswith('elix'):
+        if isinstance(self.filename, str) and os.path.exists(f'{self.filename}/corpus.elix'):
+            self.filename = f'{self.filename}/corpus.elix'
             self.read_elixir()
         else:
             # Check to see if the filename is a list, e.g. glob
@@ -47,8 +45,7 @@ class TextElixir:
     def initialize_tagger(self):
         if 'spacy' in self.tagger_option:
             # Access tagger table
-            with open('tables/spacy_taggers.json', 'r', encoding='utf-8') as file_in:
-                tagger_dict = json.loads(file_in.read())
+            tagger_dict = spacy_taggers
             try:
                 if 'accurate' in self.tagger_option:
                     return spacy.load(tagger_dict[self.lang]['spacy:accurate'])
@@ -118,7 +115,7 @@ class TextElixir:
             ### GET CURRENT LINE TO TAG ###
             for idx in range(0, total_lines):
                 if idx % 10 == 0:
-                    print(f'\rTagging Lines of Text: {idx} ({round(idx/total_lines, 1)}%)', end='')
+                    print(f'\rTagging Lines of Text: {idx} ({round(idx/total_lines*100, 1)}%)', end='')
                 # Get the text of the line.
                 if self.extension == 'TXT':
                     line = data[idx]
@@ -201,7 +198,29 @@ class TextElixir:
         # Parse kwargs
         text_filter = kwargs['text_filter'] if 'text_filter' in kwargs else None
         verbose = kwargs['verbose'] if 'verbose' in kwargs else None
-        return SearchResults(self.filename, search_string, self.word_count, punct_pos=self.punct_pos, verbose=verbose, text_filter=text_filter)
+        regex = kwargs['regex'] if 'regex' in kwargs else False
+        return SearchResults(self.filename, search_string, self.word_count, punct_pos=self.punct_pos, verbose=verbose, text_filter=text_filter, regex=regex)
+
+
+    def build_corpus(self, **kwargs):
+        # HOME PAGE DATA
+        # Build Word Frequency
+        
+        # Build Word Normalized Frequency
+
+        # Build Word Dispersion
+
+        # WORD-BY-WORD DATA
+        # Build Frequency Distribution
+
+        # Build Collocates
+
+        # Build Sentences
+
+        # Build KWIC Lines
+
+        # Build Clusters
+        pass
 
     # Calculates the word frequency list.
     def word_frequency(self, **kwargs):
@@ -222,3 +241,27 @@ class TextElixir:
                       text_filter=kwargs['text_filter'] if 'text_filter' in kwargs else None, 
                       punct_pos=self.punct_pos, 
                       chunk_num=self.chunk_num)
+
+
+# categories = ['HIST', 'BIO', 'AL', 'PHIL', 'PHYS', 'POLI']
+
+# elixir = TextElixir('Bethany Grey Corpus', lang='en')
+# # Get the total words within each section of the corpus.
+# cat_totals = {}
+# for cat in categories:
+#     results = elixir.search('*', text_filter={'text_file': f'{cat}*', 'pos': ['!PUNCT', '!SYM', '!SPACE']}, verbose=True)
+#     cat_totals[cat] = results.results_count
+
+# with open('1grams.txt', 'r', encoding='utf-8') as file_in:
+#     grams_1 = file_in.read().splitlines()
+
+# for gram in grams_1:
+#     for cat in categories:
+#         print(f'Searching for {gram} in only {cat}...')
+#         search = elixir.search(f'{gram.upper()}_VERB', verbose=True,
+#                                text_filter={
+#                                    'text_file': f'{cat}*'
+#                                    })
+#         with open('results.txt', 'a', encoding='utf-8') as file_out:
+#             print(cat, gram, search.results_count, cat_totals[cat], sep='\t', file=file_out)
+#             ibrk = 0

@@ -1,4 +1,3 @@
-from numpy import unicode_
 import pandas
 
 class Sentences:
@@ -111,6 +110,8 @@ class Sentences:
         return filtered_indices
 
     def get_citation(self, chunk, last_chunk, block_num, word1):
+        if word1.startswith('!'):
+            word1 = word1[1:]
         word_block_num = int(word1.split(':')[0])
         word_index = int(word1.split(':')[1])
 

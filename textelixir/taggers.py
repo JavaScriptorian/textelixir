@@ -91,7 +91,7 @@ def spacy_tagger(tagger, line, line_index, sentence_index, tagger_option='spacy:
 
         # If there are underscores in the lemma or actual_text, then it needs to be escaped.
         actual_text = re.sub(r'(?<!\\\\)_', r'\\\\_', actual_text)
-        lemma = re.sub(r'(?<!\\\\)_', r'\\\\_', actual_text)
+        lemma = re.sub(r'(?<!\\\\)_', r'\\\\_', lemma)
         if duplicate:
             line_data[-1]['pos2'] = pos
             line_data[-1]['lemma2'] = lemma
@@ -109,6 +109,8 @@ def spacy_tagger(tagger, line, line_index, sentence_index, tagger_option='spacy:
             if j == 0:
                 if line_data[-1]['prefix_text'] == '':
                     line_data[-1]['prefix_text'] == '   '
+            if word_index == 1:
+                line_data[-1]['prefix_text'] = ' '
         current_read_index = end_char
         # Make start_char into end_char, for the next word
         start_char = end_char
