@@ -1,14 +1,21 @@
 import csv
 import json
 import os
+import resource
+from pkg_resources import resource_filename
 import pandas
 import re
-# Change to . when exporting
 from .taggers import stanza_tagger
 from .taggers import spacy_tagger
 from .search_results import SearchResults
 from .ngrams import NGrams
 from .tables import spacy_taggers
+
+# TESTDIR = resource_filename('textelixir', 'test')
+
+# with open(f'{TESTDIR}/test.txt', 'r', encoding='utf-8') as f:
+#     print(f.read())
+
         
 class TextElixir:
     def __init__(self, filename=None, lang='en', elixir_filename=None, **kwargs):
@@ -243,25 +250,3 @@ class TextElixir:
                       chunk_num=self.chunk_num)
 
 
-# categories = ['HIST', 'BIO', 'AL', 'PHIL', 'PHYS', 'POLI']
-
-# elixir = TextElixir('Bethany Grey Corpus', lang='en')
-# # Get the total words within each section of the corpus.
-# cat_totals = {}
-# for cat in categories:
-#     results = elixir.search('*', text_filter={'text_file': f'{cat}*', 'pos': ['!PUNCT', '!SYM', '!SPACE']}, verbose=True)
-#     cat_totals[cat] = results.results_count
-
-# with open('1grams.txt', 'r', encoding='utf-8') as file_in:
-#     grams_1 = file_in.read().splitlines()
-
-# for gram in grams_1:
-#     for cat in categories:
-#         print(f'Searching for {gram} in only {cat}...')
-#         search = elixir.search(f'{gram.upper()}_VERB', verbose=True,
-#                                text_filter={
-#                                    'text_file': f'{cat}*'
-#                                    })
-#         with open('results.txt', 'a', encoding='utf-8') as file_out:
-#             print(cat, gram, search.results_count, cat_totals[cat], sep='\t', file=file_out)
-#             ibrk = 0

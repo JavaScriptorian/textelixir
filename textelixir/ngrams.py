@@ -1,6 +1,6 @@
 from .stats import calculate_keywords
-
 import pandas
+
 class NGrams:
     def __init__(self, filename, size, **kwargs):
         # Parse args and kwargs
