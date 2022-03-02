@@ -280,7 +280,7 @@ class KWIC:
         if self.results_count == 0:
             print('Cannot export KWIC lines when there are no results.')
             return
-        text = f'<html><head><title>{self.search_string} KWIC Lines</title><link href="https://cdn.jsdelivr.net/npm/halfmoon@1.1.1/css/halfmoon-variables.min.css" rel="stylesheet" /><style>.table td, .table th {{padding: 0;}} .punct {{ color: #9c9c9c;}}</style></head><body><div class="container"><h1>KWIC Lines for "{self.search_string}"</h1><p>Click headers to sort</p>'
+        text = f'<html><head><title>{self.search_string} KWIC Lines</title><link href="https://cdn.jsdelivr.net/npm/halfmoon@1.1.1/css/halfmoon-variables.min.css" rel="stylesheet" /><style>.table td, .table th {{padding: 0;}} .punct {{ color: #9c9c9c;}}</style></head><body><div class="container"><h1>KWIC Lines for "{self.search_string}"</h1><button>Copy All</button><p>Click headers to sort</p>'
         table = '<table class="table" id="table">\n'
         
         self.elixir = pandas.read_csv(self.filename, sep='\t', escapechar='\\', index_col=None, header=0, chunksize=10000)
@@ -333,7 +333,6 @@ class KWIC:
                 # The second one then combines all words that are within the range of the search string, removes the ! from the beginning of it, and adds <strong> tag around it.
                 tcells_left = '<td class="text-right">'+ ''.join([*tcells[:search_word_tcell_indices[0]]]) + '</td>'
                 tcells_right = '<td>' + ''.join([*tcells[search_word_tcell_indices[-1]+1:]]) + '</td>'
-                
                 tcells_center = '<td class="text-center">'
                 for i in tcells[search_word_tcell_indices[0]:search_word_tcell_indices[-1]+1]:
                     if i.startswith('!'):
@@ -342,7 +341,7 @@ class KWIC:
                         tcells_center += i
                 tcells = [
                             *tcells_left,
-                           tcells_center,
+                            tcells_center,
                             *tcells_right   
                         ]
 
@@ -354,4 +353,4 @@ class KWIC:
         with open(output_filename, 'w', encoding='utf-8') as file_out:
             print(text, file=file_out)
             print(table, file=file_out)
-            print('</div>\n</body>\n</html>\n', file=file_out)
+            print('</div>\n<script src="js/kwic.js"></script>\n</body>\n</html>\n', file=file_out)
