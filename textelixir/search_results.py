@@ -155,6 +155,7 @@ class SearchResults:
             results = {}
         self.elixir = pandas.read_csv(self.filename, sep='\t', escapechar='\\', index_col=None, header=0, chunksize=10000)
         for block_num, chunk in enumerate(self.elixir):
+            chunk = chunk.applymap(str)
             chunk = self.filter_chunk(chunk)
             # Normal Search Handle
             if isinstance(search_word, str):

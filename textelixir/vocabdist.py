@@ -1,3 +1,4 @@
+from lib2to3.pytree import convert
 import pandas
 import plotly.express as px
 
@@ -17,16 +18,23 @@ class VocabDist:
     def calculate_distribution(self):
         self.elixir = pandas.read_csv(self.filename, sep='\t', escapechar='\\', index_col=None, header=0, chunksize=10000)
         data = {}
-
+        convert_to_str_list = []
         for block_num, chunk in enumerate(self.elixir):
+            
             # Figure out which column header should be used for the distribution of the vocabulary.
             if block_num == 0:
                 # Save this to object because it'll be needed later anyway.
                 self.column_headers = self.determine_column_header(chunk)
+                # If the data type is not an object, then it needs to be converted into a str type object.
+                for ch in self.column_headers:
+                    if chunk.dtypes[ch].name != 'object':
+                        # Add it to the convert to str list so it knows to convert that column every time.
+                        convert_to_str_list.append(ch)
+                        
+            for column in convert_to_str_list:
+                chunk[column] = chunk[column].apply(str)
             curr_indices = self.filter_indices_by_block(self.results_indices, block_num)
             for curr_index in curr_indices:
-                # Determine the usage from just the first word. 
-                # TODO: Maybe this is a bad idea?
                 word_num = int(curr_index[0].split(':')[1])
                 citation = '/'.join([chunk.iloc[word_num][c]for c in self.column_headers])
                 if citation not in data:
@@ -36,6 +44,7 @@ class VocabDist:
                         'expected': 0,
                         'normFreq': 0
                         }
+                ibrk = 0
 
                 data[citation]['freq'] += 1
         return data
@@ -44,9 +53,11 @@ class VocabDist:
     def add_totals(self, data):
         self.elixir = pandas.read_csv(self.filename, sep='\t', escapechar='\\', index_col=None, header=0, chunksize=10000)
         for block_num, chunk in enumerate(self.elixir):
+            # Eliminate punctuation from the ch
             filtered_chunk = chunk[~chunk['pos'].isin(self.punct_pos)]
             value_counts = filtered_chunk[self.column_headers].value_counts()
-            for idx,name in enumerate(value_counts.index.tolist()):
+            for key, value in value_counts.to_dict().items():
+                name = [str(i) for i in key]
                 citation = '/'.join(name)
                 if citation not in data:
                     data[citation] = {
@@ -55,8 +66,7 @@ class VocabDist:
                         'expected': 0,
                         'normFreq': 0
                     }
-                
-                data[citation]['total'] += int(value_counts[idx])
+                data[citation]['total'] += value
         
         
         if self.search_length == 1:
@@ -90,6 +100,7 @@ class VocabDist:
         elif isinstance(self.group_by, str):
             if '/' in self.group_by:
                 return  self.group_by.split('/')
+            return [self.group_by]
         else:
             assert Exception('Please provide a string for your group_by argument.')
 
@@ -104,32 +115,79 @@ class VocabDist:
     def show_chart(self, output_metric='normFreq', **kwargs):
         x_name = kwargs['x'] if 'x' in kwargs else self.group_by
         y_name = kwargs['y'] if 'y' in kwargs else output_metric
+        hide_zeros = kwargs['hide_zeros'] if 'hide_zeros' in kwargs else False
         chart_title = kwargs['chart_title'] if 'chart_title' in kwargs else f'Vocabulary Distribution for "{self.search_string}"'
+        sort_x = kwargs['sort_x'] if 'sort_x' in kwargs else None
+        sort_y = kwargs['sort_y'] if 'sort_y' in kwargs else None
+        limit = kwargs['limit'] if 'limit' in kwargs else 0
         x = []
         y = []
 
         for k, v in self.data.items():
+            # Hide any values that have 0 in their frequency.
+            if hide_zeros == True and v['freq'] == 0:
+                continue
             x.append(k)
             y.append(v[output_metric])
-        df = pandas.DataFrame(list(zip(x, y)), columns =[x_name, y_name])
+
+        zipped_data = list(zip(x, y))
+        # Check for any sorting to be done.
+        if sort_x == 'ascending':
+            zipped_data.sort(key = lambda x: x[0]) 
+        elif sort_x == 'descending':
+            zipped_data.sort(key = lambda x: x[0], reverse=True)
+            ibrk = 0
+        
+        if sort_y == 'ascending':
+            zipped_data.sort(key = lambda x: x[1])
+        elif sort_y == 'descending':
+            zipped_data.sort(key = lambda x: x[1], reverse=True)
+
+        # Limit the list if the "limit" argument is more than 0
+        if limit > 0:
+            zipped_data = zipped_data[0:limit]
+
+        df = pandas.DataFrame(zipped_data, columns =[x_name, y_name])
         fig = px.bar(df, x=x_name, y=y_name, title=chart_title)
         fig.show()
-
-        # df = pd.DataFrame(list(zip(x, y)),
-        #     columns =[self.group_by, 'Normalized Frequency'])
 
 
     def save_chart(self, filename, output_metric='normFreq', **kwargs):
         x_name = kwargs['x'] if 'x' in kwargs else self.group_by
         y_name = kwargs['y'] if 'y' in kwargs else output_metric
+        hide_zeros = kwargs['hide_zeros'] if 'hide_zeros' in kwargs else False
         chart_title = kwargs['chart_title'] if 'chart_title' in kwargs else f'Vocabulary Distribution for "{self.search_string}"'
+        sort_x = kwargs['sort_x'] if 'sort_x' in kwargs else None
+        sort_y = kwargs['sort_y'] if 'sort_y' in kwargs else None
+        limit = kwargs['limit'] if 'limit' in kwargs else 0
         x = []
         y = []
 
         for k, v in self.data.items():
+            # Hide any values that have 0 in their frequency.
+            if hide_zeros == True and v['freq'] == 0:
+                continue
             x.append(k)
             y.append(v[output_metric])
-        df = pandas.DataFrame(list(zip(x, y)), columns =[x_name, y_name])
+
+        zipped_data = list(zip(x, y))
+        # Check for any sorting to be done.
+        if sort_x == 'ascending':
+            zipped_data.sort(key = lambda x: x[0]) 
+        elif sort_x == 'descending':
+            zipped_data.sort(key = lambda x: x[0], reverse=True)
+            ibrk = 0
+        
+        if sort_y == 'ascending':
+            zipped_data.sort(key = lambda x: x[1])
+        elif sort_y == 'descending':
+            zipped_data.sort(key = lambda x: x[1], reverse=True)
+
+        # Limit the list if the "limit" argument is more than 0
+        if limit > 0:
+            zipped_data = zipped_data[0:limit]
+
+        df = pandas.DataFrame(zipped_data, columns =[x_name, y_name])
         fig = px.bar(df, x=x_name, y=y_name, title=chart_title)
         fig.write_image(filename)
 
