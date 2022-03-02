@@ -1,7 +1,6 @@
 import csv
 import json
 import os
-import resource
 from pkg_resources import resource_filename
 import pandas
 import re
@@ -55,13 +54,16 @@ class TextElixir:
             tagger_dict = spacy_taggers
             try:
                 if 'accurate' in self.tagger_option:
+                    import spacy
                     return spacy.load(tagger_dict[self.lang]['spacy:accurate'])
                 elif 'efficient' in self.tagger_option:
+                    import spacy
                     return spacy.load(tagger_dict[self.lang]['spacy:efficient'])
             except OSError:
                 raise Exception(f'You need to download the training model for SpaCy before you can use it.\n See https://spacy.io/models for how to download a tagger.')
         elif 'stanza' in self.tagger_option:
             try:
+                import stanza
                 return stanza.Pipeline(lang=self.lang, processors='tokenize,pos,lemma', verbose=True)
             except:
                 stanza.download(self.lang)
