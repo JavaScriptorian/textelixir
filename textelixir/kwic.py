@@ -333,10 +333,15 @@ class KWIC:
                 # The second one then combines all words that are within the range of the search string, removes the ! from the beginning of it, and adds <strong> tag around it.
                 tcells_left = '<td class="text-right">'+ ''.join([*tcells[:search_word_tcell_indices[0]]]) + '</td>'
                 tcells_right = '<td>' + ''.join([*tcells[search_word_tcell_indices[-1]+1:]]) + '</td>'
-                
+                tcells_center = '<td class="text-center">'
+                for i in tcells[search_word_tcell_indices[0]:search_word_tcell_indices[-1]+1]:
+                    if i.startswith('!'):
+                        tcells_center += i[1:]
+                    else:
+                        tcells_center += i
                 tcells = [
                             *tcells_left,
-                            '<td class="text-center">' + ''.join([i[1:] for i in tcells[search_word_tcell_indices[0]:search_word_tcell_indices[-1]+1]]) + '</td>',
+                            tcells_center,
                             *tcells_right   
                         ]
 
