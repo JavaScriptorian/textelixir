@@ -1,0 +1,78 @@
+
+.table td, .table th {
+    padding: 5px 0px;
+}
+div.tippy-content h2 {
+    margin-top: 5px;
+    margin-bottom: 5px;
+}
+.tippy-content {
+    padding-bottom: 10px;
+    display: flex;
+}
+.punct {
+    color: #9c9c9c;
+}
+.copyBtn.hide {
+    width: auto; 
+    opacity: 0;
+    transition: opacity 0.2s ease;
+}
+tr:hover .copyBtn {
+    opacity: 0.7;
+    transition: opacity 0.2s ease;
+    cursor: pointer;
+}
+ span[data-pos="ADJ"], span[data-pos="ADV"], span[data-pos="AUX"] {
+    color: #bfa949
+}
+span[data-pos="NOUN"], span[data-pos="PROPN"], span[data-pos="PRON"]{
+    color: #6c757d;
+}
+span[data-pos="VERB"] {
+    color: #28a745;
+}
+span[data-pos="CONJ"], span[data-pos="CCONJ"], span[data-pos="PART"], span[data-pos="SCONJ"], span[data-pos="DET"], span[data-pos="ADP"]{
+    color: #17a2b8
+}
+span.punct, span[data-pos="SYM"], span[data-pos="X"], span[data-pos="NUM"], span[data-pos="INTJ"], span[data-pos="SPACE"] {
+    color: #ff8084
+}
+.dot {
+    height: 10px;
+    width: 10px;
+    background-color: #bbb;
+    border-radius: 50%;
+    display: inline-flex;
+    margin: 0px 10px;
+}
+.dot:hover{
+    background-color: black;
+    cursor: pointer;
+}
+.btn:hover {
+    background-color: gray;
+}
+.btn-showtype {
+    min-width: 90px;
+    margin: auto;
+    display: block;
+    padding: auto;
+}
+h2, thead td {
+    font-family: Verdana, Geneva, Tahoma, sans-serif;
+    font-size: 17px;
+}
+ul {
+    list-style: none;
+}
+.copyAll {
+    min-width: 100px;
+    margin: auto;
+}
+.align-left {
+    float: left;
+}
+.align-right {
+    float: right;
+}
