@@ -333,6 +333,10 @@ class SearchResults:
         return KWIC(self.filename, self.results_indices, before=before, after=after, group_by=group_by, search_string=self.search_string, punct_pos=self.punct_pos)
 
 
+    ### KWIC LINES ALIAS
+    def concordance_lines(self, before=5, after=5, group_by='lower'):
+        return KWIC(self.filename, self.results_indices, before=before, after=after, group_by=group_by, search_string=self.search_string, punct_pos=self.punct_pos)
+
     ### COLLOCATES HANDLER
     def collocates(self, before=5, after=5, group_by='lemma_pos', mi_threshold=3, sample_size_threshold=2):
         ### ERROR HANDLING
@@ -359,6 +363,3 @@ class SearchResults:
     ### SENTENCES HANDLER
     def sentences(self, group_by='text'):
         return Sentences(self.filename, self.results_indices, group_by=group_by, search_string=self.search_string)
-
-    ### Frequency Distribution
-    # 

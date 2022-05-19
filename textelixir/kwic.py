@@ -1,5 +1,7 @@
 import pandas
 from pkg_resources import resource_filename
+from .exports import export_as_txt
+
 JSDIR = resource_filename('textelixir', 'js')
 CSSDIR = resource_filename('textelixir', 'css')
 class KWIC:
@@ -100,8 +102,6 @@ class KWIC:
             for curr_index in curr_indices:
                 dataframe_words_list = []
                 for word in curr_index:
-                    if '229:5438' in word:
-                        ibrk = 0
                     word_block, word_idx = word.split(':')
                     # An exclamation point is added to the word_block if it's a search query word. The is_search_query_word flag helps with formatting later.
                     if word_block.startswith('!'):
@@ -277,6 +277,10 @@ class KWIC:
             kwic_list = self.get_kwic_ocr_after(chunk, block_num, curr_index+1, kwic_list)
 
         return kwic_list
+
+
+    def export_as_txt(self, output_filename):
+        return export_as_txt(output_filename, [{'text': i} for i in self.kwic_lines], payload=['text'])
 
     def export_as_html(self, output_filename, group_by='text', ignore_punctuation=False):
         if self.results_count == 0:

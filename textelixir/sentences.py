@@ -1,4 +1,5 @@
 import pandas
+from .exports import export_as_txt 
 
 class Sentences:
     def __init__(self, filename, results_indices, group_by, search_string):
@@ -306,9 +307,8 @@ class Sentences:
         return full_sentence_index_ranges
 
     def export_as_txt(self, filename):
-        with open(filename, 'w', encoding='utf-8') as file_out:
-            for s in self.sentences:
-                print(f'{s["cit"]}\t{s["sent"]}', file=file_out)
+        return export_as_txt(filename, state=self.sentences, payload=['cit', 'sent'])
+
 
     def export_as_html(self, filename, group_by='text', ignore_punctuation=False):
         assert Exception('Sorry, this is not ready yet!')

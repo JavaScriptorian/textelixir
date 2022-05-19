@@ -9,12 +9,6 @@ from .taggers import spacy_tagger
 from .search_results import SearchResults
 from .ngrams import NGrams
 from .tables import spacy_taggers
-
-# TESTDIR = resource_filename('textelixir', 'test')
-
-# with open(f'{TESTDIR}/test.txt', 'r', encoding='utf-8') as f:
-#     print(f.read())
-
         
 class TextElixir:
     def __init__(self, filename=None, lang='en', elixir_filename=None, **kwargs):
