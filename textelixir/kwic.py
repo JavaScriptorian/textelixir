@@ -4,6 +4,8 @@ from .exports import export_as_txt
 
 JSDIR = resource_filename('textelixir', 'js')
 CSSDIR = resource_filename('textelixir', 'css')
+IMGDIR = resource_filename('textelixir', 'img')
+
 class KWIC:
     def __init__(self, filename, results_indices, before, after, group_by='lower', search_string='', punct_pos=''):
         self.filename = filename
@@ -287,7 +289,7 @@ class KWIC:
             print('Cannot export KWIC lines when there are no results.')
             return
 
-        text = f'<html>\n<head>\n<title>{self.search_string} KWIC Lines</title>\n<link rel="stylesheet" href="https://unpkg.com/tippy.js@6/themes/light.css" />\n<link href="https://cdn.jsdelivr.net/npm/halfmoon@1.1.1/css/halfmoon-variables.min.css" rel="stylesheet" />\n<link rel="stylesheet" href="{CSSDIR}/kwic.css">\n</head>\n<body>\n<div class="container">\n<h1 class="text-center">KWIC Lines for "{self.search_string}"</h1>\n<input class="btn copyAll align-left" id="copyButton" type="button" value="Copy All"><input type="button" id="showAll" value="Table Options" class="btn align-right">'
+        text = f'<html>\n<head>\n<title>{self.search_string} KWIC Lines</title>\n<meta charset="utf-8" />\n<link rel="stylesheet" href="https://unpkg.com/tippy.js@6/themes/light.css" />\n<link href="https://cdn.jsdelivr.net/npm/halfmoon@1.1.1/css/halfmoon-variables.min.css" rel="stylesheet" />\n<link rel="stylesheet" href="{CSSDIR}/kwic.css">\n</head>\n<body>\n<div class="container">\n<h1 class="text-center">KWIC Lines for "{self.search_string}"</h1>\n<input class="btn copyAll align-left" id="copyButton" type="button" value="Copy All"><input type="button" id="showAll" value="Table Options" class="btn align-right">'
         dots = '<td class="text-right">'
         b = 0
         a = 0
@@ -351,7 +353,7 @@ class KWIC:
                 # Basically the first and 3rd elements are just getting all the words before and after the search words.
                 # The second one then combines all words that are within the range of the search string, removes the ! from the beginning of it, and adds <strong> tag around it.
                 tcells_left = '<td class="text-right">'+ ''.join([*tcells[:search_word_tcell_indices[0]]]) + '</td>'
-                tcells_right = '<td>' + ''.join([*tcells[search_word_tcell_indices[-1]+1:]]) + '<img src="textelixir/img/copy-solid.svg" class="btn-sm hide copyBtn align-right" onclick="copyRow()"></td>'
+                tcells_right = '<td>' + ''.join([*tcells[search_word_tcell_indices[-1]+1:]]) + f'<img src="{IMGDIR}/copy-solid.svg" class="btn-sm hide copyBtn align-right" onclick="copyRow()"></td>'
                 tcells_center = '<td class="text-center">' 
                 # tcells_copy = '<td></td>'
                 for i in tcells[search_word_tcell_indices[0]:search_word_tcell_indices[-1]+1]:

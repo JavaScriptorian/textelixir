@@ -4,7 +4,7 @@ const copy = (text) => {
 }
 
 const copyRow = () => {
-    let copyBtn = event.srcElement;
+    let copyBtn = event.target;
     let tr = copyBtn.parentElement.parentElement;
     let originalHTML = tr.innerHTML;
     children = tr.children;
