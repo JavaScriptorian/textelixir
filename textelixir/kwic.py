@@ -1,5 +1,7 @@
 import pandas
-
+from pkg_resources import resource_filename
+JSDIR = resource_filename('textelixir', 'js')
+CSSDIR = resource_filename('textelixir', 'css')
 class KWIC:
     def __init__(self, filename, results_indices, before, after, group_by='lower', search_string='', punct_pos=''):
         self.filename = filename
@@ -280,9 +282,22 @@ class KWIC:
         if self.results_count == 0:
             print('Cannot export KWIC lines when there are no results.')
             return
-        text = f'<html><head><title>{self.search_string} KWIC Lines</title><link href="https://cdn.jsdelivr.net/npm/halfmoon@1.1.1/css/halfmoon-variables.min.css" rel="stylesheet" /><style>.table td, .table th {{padding: 0;}} .punct {{ color: #9c9c9c;}}</style></head><body><div class="container"><h1>KWIC Lines for "{self.search_string}"</h1><button>Copy All</button><p>Click headers to sort</p>'
-        table = '<table class="table" id="table">\n'
+
+        text = f'<html>\n<head>\n<title>{self.search_string} KWIC Lines</title>\n<link rel="stylesheet" href="https://unpkg.com/tippy.js@6/themes/light.css" />\n<link href="https://cdn.jsdelivr.net/npm/halfmoon@1.1.1/css/halfmoon-variables.min.css" rel="stylesheet" />\n<link rel="stylesheet" href="{CSSDIR}/kwic.css">\n</head>\n<body>\n<div class="container">\n<h1 class="text-center">KWIC Lines for "{self.search_string}"</h1>\n<input class="btn copyAll align-left" id="copyButton" type="button" value="Copy All"><input type="button" id="showAll" value="Table Options" class="btn align-right">'
+        dots = '<td class="text-right">'
+        b = 0
+        a = 0
+        while b < self.before:
+            dots += f'<span class="dot" data-order="l{b}"></span>'
+            b += 1
+        dots +=f'</td><td class="text-center"><span class="dot" data-order="c"></span></td><td>'
+        while a < self.after:
+            dots += f'<span class="dot" data-order="r{a}"></span>'
+            a += 1
         
+        table = f'<table class="table" id="table">\n<thead><tr><td class="text-right">Before</td><td class="text-center">Hit</td><td>After</td></tr>\n<tr>{dots}</td></tr>\n</thead>\n<tbody>'
+            
+
         self.elixir = pandas.read_csv(self.filename, sep='\t', escapechar='\\', index_col=None, header=0, chunksize=10000)
         for block_num, chunk in enumerate(self.elixir):
             # Gets the word indices that are directly available in this current block_num
@@ -332,8 +347,9 @@ class KWIC:
                 # Basically the first and 3rd elements are just getting all the words before and after the search words.
                 # The second one then combines all words that are within the range of the search string, removes the ! from the beginning of it, and adds <strong> tag around it.
                 tcells_left = '<td class="text-right">'+ ''.join([*tcells[:search_word_tcell_indices[0]]]) + '</td>'
-                tcells_right = '<td>' + ''.join([*tcells[search_word_tcell_indices[-1]+1:]]) + '</td>'
-                tcells_center = '<td class="text-center">'
+                tcells_right = '<td>' + ''.join([*tcells[search_word_tcell_indices[-1]+1:]]) + '<img src="textelixir/img/copy-solid.svg" class="btn-sm hide copyBtn align-right" onclick="copyRow()"></td>'
+                tcells_center = '<td class="text-center">' 
+                # tcells_copy = '<td></td>'
                 for i in tcells[search_word_tcell_indices[0]:search_word_tcell_indices[-1]+1]:
                     if i.startswith('!'):
                         tcells_center += i[1:]
@@ -349,8 +365,9 @@ class KWIC:
                 trow = f'<tr>{tcells}</tr>\n'
                 table += trow
             last_chunk = chunk
-        table += '</table>\n'
+        table += '</tbody></table>\n'
         with open(output_filename, 'w', encoding='utf-8') as file_out:
             print(text, file=file_out)
             print(table, file=file_out)
-            print('</div>\n<script src="js/kwic.js"></script>\n</body>\n</html>\n', file=file_out)
+            # TODO: Think about fixing this issue later... But it might be ok. :)
+            print(f'</div>\n<script src="{JSDIR}/kwic.js"></script>\n<!-- Tippy Development -->\n<script src="https://unpkg.com/@popperjs/core@2/dist/umd/popper.min.js"></script>\n<script src="https://unpkg.com/tippy.js@6/dist/tippy-bundle.umd.js"></script>\n\n<!-- Tippy Production -->\n<script src="https://unpkg.com/@popperjs/core@2"></script>\n<script src="https://unpkg.com/tippy.js@6"></script>\n\n\n<script>\nconst hideTippy = (instance) => {{\n setTimeout (() => {{\n let buttons = document.querySelectorAll("div.tippy-content input");\n buttons.forEach(element => {{\n element.addEventListener("click", function () {{\n instance.hide();\n }})\n }});\n }}, 200)\n}}\ntippy(".dot", {{\ncontent: `\n<div>\n<div id="sort">\n<h2 class="text-center">sort</h2>\n<input class="btn btn-alpha" id="A-Z" type="button" value="A-Z">\n<input class="btn btn-alpha" id="Z-A" type="button" value="Z-A">\n</div>\n<div id="show">\n<h2 class="text-center">show</h2>\n<div class="center btn-group-toggle" id="buttons" data-toggle="buttons">\n<input class="btn btn-showtype" id="lemma" type="button" value="lemma">\n<input class="btn btn-showtype" id="word" type="button" value="word">\n<input class="btn btn-showtype" id="pos" type="button" value="POS">\n</div>\n</div>\n</div>`,\nplacement: "bottom",\nallowHTML: true,\ninteractive: true,\ntheme: "light",\nanimation: "fade",\n trigger: "click", onShow(instance){{\nhideTippy(instance)}},}})\n tippy("#showAll", {{content: `<div><div id="show"><h2 class="text-center">show</h2><div class="center btn-group-toggle" id="buttons" data-toggle="buttons"><input class="btn btn-showtype" id="lemma" type="button" value="lemma"><input class="btn btn-showtype" id="word" type="button" value="word"><input class="btn btn-showtype" id="pos" type="button" value="POS"></div></div></div>`,placement: "bottom",allowHTML: true,interactive: true,theme: "light",animation: "fade",trigger: "click", onShow(instance){{\nhideTippy(instance)}}}})</script></body>\n</html>\n', file=file_out)
