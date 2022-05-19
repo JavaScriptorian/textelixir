@@ -4,7 +4,7 @@ const copy = (text) => {
 }
 
 const copyRow = () => {
-    let copyBtn = event.target;
+    let copyBtn = event.srcElement;
     let tr = copyBtn.parentElement.parentElement;
     let originalHTML = tr.innerHTML;
     children = tr.children;
@@ -16,7 +16,7 @@ const copyRow = () => {
     let copied = '<img src="textelixir/img/clipboard-check-solid.svg" class="btn-sm copyBtn align-right">'
     copyBtn.remove();
     tr.children[2].innerHTML += copied;
-    setTimeout (() => {
+    setTimeout(() => {
         tr.innerHTML = originalHTML;
     }, 2000)
 }
@@ -24,7 +24,7 @@ const copyRow = () => {
 // copy All
 let contents = []
 let copyAllBtn = document.querySelector('#copyButton');
-copyAllBtn.addEventListener('click', function copyAll() {
+copyAllBtn.addEventListener('click', () => {
     let i = 0;
     document.querySelectorAll('tbody tr td').forEach(column => {
         text = column.innerText;
@@ -38,8 +38,8 @@ copyAllBtn.addEventListener('click', function copyAll() {
         if (i > 2) { i = 0 };
     })
     copy(contents);
-    copyAllBtn.value = 'Copied'; 
-    setTimeout (() => {
+    copyAllBtn.value = 'Copied';
+    setTimeout(() => {
         copyAllBtn.value = 'Copy All';
     }, 2000)
 })
@@ -60,18 +60,18 @@ const showWordTypes = {
 
 // showAll options 
 let showAll = document.querySelector('#showAll')
-showAll.addEventListener('click', function () {
+showAll.addEventListener('click', () => {
     // wait before getting buttons
     setTimeout(() => {
-        
+
         // Show Functions
         document.querySelectorAll('.btn-showtype').forEach(show_button => {
-            show_button.addEventListener('click', function () {
+            show_button.addEventListener('click', () => {
                 let show = showWordTypes[show_button['value']];
                 document.querySelectorAll('tbody tr td span.w').forEach(word => {
                     word.innerHTML = word.dataset[show];
                 });
-                
+
             })
         });
 
@@ -83,186 +83,43 @@ document.querySelectorAll('.dot').forEach(dot => {
     dot.addEventListener('click', function () {
         // wait before getting buttons
         setTimeout(() => {
-            document.querySelectorAll('.btn-alpha').forEach(alpha_button => {
-                alpha_button.addEventListener('click', function () {
-                    let [direction, dotOrder] = dot.dataset.order;
+            document.querySelectorAll('.btn-alpha').forEach(alphaButton => {
+                alphaButton.addEventListener('click', function () {
+                    let sortType = alphaButton['value']; // 'A-Z' || 'Z-A'
+                    let [direction, dotOrder] = dot.dataset.order; // direction: 'l' || 'c' || 'r' , dotOrder: 0.0 || 1.0 || 2.0 ...
                     dotOrder = parseInt(dotOrder);
-                    let sort_type = alpha_button['id'];
-                    const rows = document.querySelectorAll('tbody tr');
-                    let done_words = [];
-                    let row_array = [];
 
-                    if (sort_type == 'A-Z') {
-                        for (let i = 0; i < rows.length; i++) {
-                            const currCell = rows[i].querySelectorAll('td')[selectCells[direction]];
-                            let inserted = false;
-
-                            if (direction === 'c') {
-                                let words = currCell.querySelectorAll('span.w')
-
-                                if (done_words.length > 0) {
-                                    for (let itr = 0; itr < done_words.length; itr++) {
-                                        if (!inserted) {
-                                            for (let cmp = 1; cmp < words.length - 1; cmp++) {
-                                                if (words[cmp].innerHTML.localeCompare(done_words[itr][cmp].innerHTML) < 1) {
-                                                    if (words[cmp].innerHTML.localeCompare(done_words[itr][cmp].innerHTML) == 0) {
-                                                        if (words.length > done_words[itr].length) {
-                                                            while (words.length > done_words[itr].length && itr < done_words.length - 1) {
-                                                                itr++;
-                                                            }
-                                                            done_words.splice(itr + 1, 0, words);
-                                                            row_array.splice(itr + 1, 0, rows[i]);
-                                                            inserted = true;
-                                                            break;
-                                                        }
-                                                        else {
-                                                            done_words.splice(itr, 0, words);
-                                                            row_array.splice(itr, 0, rows[i]);
-                                                            inserted = true;
-                                                            break;
-                                                        }
-                                                    }
-                                                    else {
-                                                        done_words.splice(itr, 0, words);
-                                                        row_array.splice(itr, 0, rows[i]);
-                                                        inserted = true;
-                                                        break;
-                                                    }
-                                                }
-                                                else {
-                                                    break;
-                                                }
-                                            }
-                                        }
-                                    }
-
-                                    if (!inserted) {
-                                        done_words.push(words);
-                                        row_array.push(rows[i]);
-                                    }
-
-                                }
-                                else {
-                                    done_words.push(words);
-                                    row_array.push(rows[i])
-                                }
+                    // Create an array of objects that contains the innerHTML of each row and the word that is being sorted on.
+                    const rowHTML = document.querySelectorAll('tbody tr');
+                    let rows = Array.from(rowHTML)
+                        .reduce((acc, curr, idx) => {
+                            // Get an array of all the words
+                            const words = direction === 'c' ? null : curr.querySelectorAll('td')[selectCells[direction]].querySelectorAll('span.w');
+                            if (words) {
+                                // 'I'
+                                var selectedWord = words[dotOrder].textContent;
+                                // 'am.the.best.programmer' || 'programmer.best.the.am'
+                                var otherWords = Array.from(words).map((el) => el.textContent);
+                                otherWords = direction === 'l' ? otherWords.slice(0, dotOrder).reverse().join('.') : otherWords.slice(dotOrder+1).join('.');
                             }
-
-                            else {
-                                const currWord = currCell.querySelectorAll('span.w')[dotOrder].innerHTML;
-                                if (done_words.length > 0) {
-                                    for (let itr = 0; itr < done_words.length; itr++) {
-                                        if (currWord.localeCompare(done_words[itr]) < 1) {
-                                            done_words.splice(itr, 0, currWord);
-                                            row_array.splice(itr, 0, rows[i]);
-                                            inserted = true;
-                                            break;
-                                        }
-                                    }
-                                    if (!inserted) {
-                                        done_words.push(currWord);
-                                        row_array.push(rows[i]);
-                                    }
-                                }
-                                else {
-                                    done_words.push(currWord);
-                                    row_array.push(rows[i])
-                                }
-                            }
-                        }
-                    }
-
-                    else {
-                        for (let i = 0; i < rows.length; i++) {
-                            const currCell = rows[i].querySelectorAll('td')[selectCells[direction]];
-                            let inserted = false;
-
-                            if (direction === 'c') {
-                                let words = currCell.querySelectorAll('span.w')
-
-                                if (done_words.length > 0) {
-                                    for (let itr = 0; itr < done_words.length; itr++) {
-                                        if (!inserted) {
-                                            for (let cmp = 1; cmp < words.length - 1; cmp++) {
-                                                if (words[cmp].innerHTML.localeCompare(done_words[itr][cmp].innerHTML) > -1) {
-                                                    if (words[cmp].innerHTML.localeCompare(done_words[itr][cmp].innerHTML) == 0) {
-                                                        if (words.length < done_words[itr].length) {
-                                                            while (words.length < done_words[itr].length && itr < done_words.length - 1) {
-                                                                itr++;
-                                                            }
-                                                            done_words.splice(itr + 1, 0, words);
-                                                            row_array.splice(itr + 1, 0, rows[i]);
-                                                            inserted = true;
-                                                            break;
-                                                        }
-                                                        else {
-                                                            done_words.splice(itr, 0, words);
-                                                            row_array.splice(itr, 0, rows[i]);
-                                                            inserted = true;
-                                                            break;
-                                                        }
-                                                    }
-                                                    else {
-                                                        done_words.splice(itr, 0, words);
-                                                        row_array.splice(itr, 0, rows[i]);
-                                                        inserted = true;
-                                                        break;
-                                                    }
-                                                }
-                                                else {
-                                                    break;
-                                                }
-                                            }
-                                        }
-                                    }
-
-                                    if (!inserted) {
-                                        done_words.push(words);
-                                        row_array.push(rows[i]);
-                                    }
-
-                                }
-                                else {
-                                    done_words.push(words);
-                                    row_array.push(rows[i])
-                                }
-                            }
-
-                            else {
-                                const currWord = currCell.querySelectorAll('span.w')[dotOrder].innerHTML;
-                                let inserted = false;
-
-                                if (done_words.length > 0) {
-                                    for (let itr = 0; itr < done_words.length; itr++) {
-                                        if (currWord.localeCompare(done_words[itr]) > -1) {
-                                            done_words.splice(itr, 0, currWord);
-                                            row_array.splice(itr, 0, rows[i]);
-                                            inserted = true;
-                                            break;
-                                        }
-                                    }
-                                    if (!inserted) {
-                                        done_words.push(currWord);
-                                        row_array.push(rows[i]);
-                                    }
-                                }
-                                else {
-                                    done_words.push(currWord);
-                                    row_array.push(rows[i]);
-                                }
-                            }
-                        }
-                    }
-
-                    let tbody = document.querySelector('tbody');
+                            acc.push({
+                                innerHTML: curr.innerHTML,
+                                // Use the entire <td> cell if the direction is 'c'. Otherwise, just use a specific word from the KWIC lines.
+                                sortWord: words === null ? curr.querySelectorAll('td')[selectCells[direction]].textContent : `${selectedWord}.${otherWords}`
+                            })
+                            return acc;
+                        }, [])
+                        // Sort by the sort word.
+                        .sort((a,b) => {
+                            return sortType === 'A-Z' ? a.sortWord.localeCompare(b.sortWord) : b.sortWord.localeCompare(a.sortWord);
+                        });
+                    // Remove values from <tbody>
+                    let tbody = document.querySelector('tbody')
                     tbody.innerHTML = '';
-
-                    for (let arr_len = 0; arr_len < row_array.length; arr_len++) {
-                        tbody.appendChild(row_array[arr_len]);
-                    }
-
+                    // Add sorted rows to <tbody>
+                    rows.forEach(({innerHTML}) =>  tbody.innerHTML += innerHTML);
                 })
-            })
+            });
 
             // Show Functions
             document.querySelectorAll('.btn-showtype').forEach(show_button => {
@@ -287,12 +144,3 @@ document.querySelectorAll('.dot').forEach(dot => {
         }, 200);
     })
 });
-
-
-// a_z.addEventListener('click', function () {
-//     console.log('sort A-Z');
-// })
-// z_a.addEventListener('click', function () {
-//     console.log('sort Z-A')
-// })
-
