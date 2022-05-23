@@ -89,3 +89,12 @@ class NGrams:
         elif isinstance(self.text_filter, list):
             pass
             # TODO: This is where a user could input ['Book of Mormon/1 Nephi/1/1'] to specify exact citation filtering.
+    def export_as_txt(self, output_filename):
+        return('stuff')
+
+
+
+    def export_as_csv():
+        return('csv')
+    def export_as_xlsx():
+        return('xlsx')
