@@ -3,6 +3,7 @@ import json
 from math import log2
 import pandas
 import re
+from .exports import export_as_txt
 from pkg_resources import resource_filename
 JSDIR = resource_filename('textelixir', 'js')
 CSSDIR = resource_filename('textelixir', 'css')
@@ -236,26 +237,7 @@ class Collocates:
         self.friends = sorted(self.friends, key = lambda i: i['sample'], reverse=True)
 
     def export_as_txt(self, output_filename):
-        with open(output_filename, 'w', encoding='utf-8') as file_out:
-
-            for idx, friend in enumerate(self.friends):
-                if '_' in friend['word']:
-                    word, pos = friend['word'].split('_')
-                    pos = re.sub(r'/', r'', pos)
-                    headers = 'word\tpos\tsample\ttotal\texpected\tMI'
-
-                    if idx == 0:
-                        print(f'search term: {self.search_string}', file=file_out)
-                        print(headers, file=file_out)
-                    print(f'{friend["word"]}\t{pos}\t{friend["sample"]}\t{friend["total"]}\t{friend["expected"]}\t{friend["mi"]}', file=file_out)
-                else:
-                    word = friend['word']
-                    headers = 'word\tsample\ttotal\texpected\tMI'
-
-                    if idx == 0:
-                        print(f'search term: {self.search_string}', file=file_out)                    
-                        print(headers, file=file_out)
-                    print(f'{friend["word"]}\t{friend["sample"]}\t{friend["total"]}\t{friend["expected"]}\t{friend["mi"]}', file=file_out)
+        return export_as_txt(output_filename, self.friends, payload=['collocates', 'word', 'sample', 'total', 'expected', 'mi'])
                 
 
     def export_as_csv(self, output_filename):
