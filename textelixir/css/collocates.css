@@ -1,0 +1,6 @@
+body.waiting * {
+    cursor: progress;
+  }
+th {
+cursor: pointer;
+}

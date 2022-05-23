@@ -3,9 +3,10 @@ import json
 from math import log2
 import pandas
 import re
-from .scripts import copy_btn
-from .scripts import sort_alpha
-from .scripts import sort_num
+from .exports import export_as_txt
+from pkg_resources import resource_filename
+JSDIR = resource_filename('textelixir', 'js')
+CSSDIR = resource_filename('textelixir', 'css')
 
 class Collocates:
     def __init__(self, filename, results_indices, before, after, word_count, group_by, mi_threshold=3, sample_size_threshold=2, search_string=''):
@@ -236,26 +237,7 @@ class Collocates:
         self.friends = sorted(self.friends, key = lambda i: i['sample'], reverse=True)
 
     def export_as_txt(self, output_filename):
-        with open(output_filename, 'w', encoding='utf-8') as file_out:
-
-            for idx, friend in enumerate(self.friends):
-                if '_' in friend['word']:
-                    word, pos = friend['word'].split('_')
-                    pos = re.sub(r'/', r'', pos)
-                    headers = 'word\tpos\tsample\ttotal\texpected\tMI'
-
-                    if idx == 0:
-                        print(f'search term: {self.search_string}', file=file_out)
-                        print(headers, file=file_out)
-                    print(f'{friend["word"]}\t{pos}\t{friend["sample"]}\t{friend["total"]}\t{friend["expected"]}\t{friend["mi"]}', file=file_out)
-                else:
-                    word = friend['word']
-                    headers = 'word\tsample\ttotal\texpected\tMI'
-
-                    if idx == 0:
-                        print(f'search term: {self.search_string}', file=file_out)                    
-                        print(headers, file=file_out)
-                    print(f'{friend["word"]}\t{friend["sample"]}\t{friend["total"]}\t{friend["expected"]}\t{friend["mi"]}', file=file_out)
+        return export_as_txt(output_filename, self.friends, payload=['collocates', 'word', 'sample', 'total', 'expected', 'mi'])
                 
 
     def export_as_csv(self, output_filename):
@@ -323,7 +305,7 @@ class Collocates:
     def export_as_html(self, output_filename):
         with open(output_filename, 'w', encoding='utf-8') as file_out:
 
-            text = f'<html><head><title>{self.search_string} Collocates</title><link href="https://cdn.jsdelivr.net/npm/halfmoon@1.1.1/css/halfmoon-variables.min.css" rel="stylesheet" /></head><body><div class="container"><h1>Collocates for "{self.search_string}"</h1><p>Click headers to sort</p><input id="copy_btn" type="button" value="Copy Table"></p>'
+            text = f'<html><head><title>{self.search_string} Collocates</title><link href="https://cdn.jsdelivr.net/npm/halfmoon@1.1.1/css/halfmoon-variables.min.css" rel="stylesheet" /><link rel="stylesheet" href="{CSSDIR}/collocates.css"></head><body><div class="container"><h1>Collocates for "{self.search_string}"</h1><p>Click headers to sort</p><input id="copy_btn" type="button" value="Copy Table"></p>'
             table = '<table class="table" id="table">\n'          
             for idx, friend in enumerate(self.friends):
                 if '_' in friend['word']:
@@ -338,9 +320,9 @@ class Collocates:
                         # add Alpha javascript for word and pos, but num javascript for all other columns
                         for column in header:
                             if i < 2:
-                                table += f'  <th style="cursor:pointer;" onclick="sortAlpha({i})">{column}</th>\n'.format(column.strip())
+                                table += f'  <th onclick="sortAlpha({i})">{column}</th>\n'.format(column.strip())
                             else:
-                                table +=f'  <th style="cursor:pointer;" onclick="sortNum({i})">{column}</th>\n'.format(column.strip())
+                                table +=f'  <th onclick="sortNum({i})">{column}</th>\n'.format(column.strip())
                             i += 1
                         table += "  </tr>\n"
                     else:
@@ -358,9 +340,9 @@ class Collocates:
                         # add Alpha javascript for word, num javascript for all other columns
                         for column in header:
                             if i == 0:
-                                table += f'  <th style="cursor:pointer;" onclick="sortAlpha({i})">{column}</th>\n'.format(column.strip())
+                                table += f'  <th onclick="sortAlpha({i})">{column}</th>\n'.format(column.strip())
                             else:
-                                table +=f'  <th style="cursor:pointer;" onclick="sortNum({i})">{column}</th>\n'.format(column.strip())
+                                table +=f'  <th onclick="sortNum({i})">{column}</th>\n'.format(column.strip())
                             i += 1
                         table += "  </tr>\n"
                     else:
@@ -375,9 +357,9 @@ class Collocates:
             print(table, file=file_out)
                                   
             # Print out scripts for sorting and copying. 
-            print(f'<script>{sort_alpha}</script>', file=file_out)
-            print(f'<script>{sort_num}</script>', file=file_out)
-            print(f'<script>{copy_btn}</script>', file=file_out)
+
+
+            print(f'<script src="{JSDIR}/collocates.js"></script>', file=file_out)
 
             # End output of HTML file.
             print('</body></html>', file=file_out)
