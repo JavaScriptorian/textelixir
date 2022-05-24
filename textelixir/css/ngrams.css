@@ -1,0 +1,24 @@
+
+.table td, .table th {
+    padding: 5px 5px;
+}
+.table {
+   width: auto;
+}
+.btn:hover {
+    background-color: gray;
+}
+
+h2, thead td {
+    font-family: Verdana, Geneva, Tahoma, sans-serif;
+    font-size: 17px;
+}
+
+#copy_btn {
+    min-width: 100px;
+    margin: auto;
+}
+
+.align-right {
+    float: right;
+}

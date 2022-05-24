@@ -1,5 +1,11 @@
 from .stats import calculate_keywords
 import pandas
+from .exports import export_as_txt
+import csv
+import xlsxwriter
+from pkg_resources import resource_filename
+JSDIR = resource_filename('textelixir', 'js')
+CSSDIR = resource_filename('textelixir', 'css')
 
 class NGrams:
     def __init__(self, filename, size, **kwargs):
@@ -90,11 +96,48 @@ class NGrams:
             pass
             # TODO: This is where a user could input ['Book of Mormon/1 Nephi/1/1'] to specify exact citation filtering.
     def export_as_txt(self, output_filename):
-        return('stuff')
+        return export_as_txt(output_filename, [{'ngram': s[0], 'freq': s[1]} for s in self.ngrams], payload=['ngram', 'freq'])
 
+    def export_as_csv(self, output_filename):
+        with open(output_filename, 'w', encoding='utf-8', newline='') as file_out:
+            writer = csv.writer(file_out) 
+            writer.writerow(['ngram', 'freq'])
+            for s in self.ngrams:
+                writer.writerow([s[0], s[1]])
 
+    def export_as_xlsx(self, output_filename):
+        book = xlsxwriter.Workbook(output_filename)
+        sheet = book.add_worksheet()
+        sheet.write(0, 0, 'ngram')
+        sheet.write(0, 1, 'freq')
+        row = 1
+        for ngram, freq in self.ngrams:
+            sheet.write(row, 0, ngram)
+            sheet.write(row, 1, freq)
+            row += 1
+        book.close()
 
-    def export_as_csv():
-        return('csv')
-    def export_as_xlsx():
-        return('xlsx')
+    def export_as_html(self, output_filename):
+        with open(output_filename, 'w', encoding='utf-8') as file_out:
+            text = f'<html><head><title>N-grams</title><link href="https://cdn.jsdelivr.net/npm/halfmoon@1.1.1/css/halfmoon-variables.min.css" rel="stylesheet" /><link rel="stylesheet" href="{CSSDIR}/ngrams.css"></head><body><div class="container"><h1>N-grams for {self.filename}</h1><h2>Length:{self.size} </h2><input id="copy_btn" type="button" value="Copy Table"></p>'
+            table = '<table class="table" id="table">\n<thead><tr><td>n-gram</td><td>freq</td></tr></thead><tbody>'
+
+            # append every row
+            curr = 0
+            # max number of rows
+            max = 200
+
+            while curr in range(0, max):
+                table += f'<tr><td>{self.ngrams[curr][0]}</td><td>{self.ngrams[curr][1]}</td></tr>\n'
+                curr += 1
+            table += '</tbody></table></div>'
+            # print table
+            print(text, file=file_out)
+            print(table, file=file_out)
+
+            # attach js scripts
+            print(f'<script src="{JSDIR}/ngrams.js"></script>', file=file_out)
+
+            # End output of HTML file.
+            print('</body></html>', file=file_out)
+
