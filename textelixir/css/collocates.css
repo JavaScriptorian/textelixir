@@ -4,3 +4,6 @@ body.waiting * {
 th {
 cursor: pointer;
 }
+.table {
+  width: auto;
+}
