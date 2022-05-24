@@ -24,25 +24,20 @@ const copyRow = () => {
 // copy All
 let contents = []
 let copyAllBtn = document.querySelector('#copyButton');
-copyAllBtn.addEventListener('click', () => {
-    let i = 0;
-    document.querySelectorAll('tbody tr td').forEach(column => {
-        text = column.innerText;
-        if (i < 2) {
-            contents.push(text, '\t');
-        }
-        if (i == 2) {
-            contents.push(text, '\n');
-        }
-        i++;
-        if (i > 2) { i = 0 };
-    })
-    copy(contents);
-    copyAllBtn.value = 'Copied';
-    setTimeout(() => {
-        copyAllBtn.value = 'Copy All';
-    }, 2000)
-})
+copyAllBtn.addEventListener('click', function () {
+    window.getSelection().removeAllRanges();
+    let urlField = document.querySelector('table');
+        
+    // create a Range object
+    let range = document.createRange();  
+    // set the Node to select the "range"
+    range.selectNode(urlField);
+    // add the Range to the set of window selections
+    window.getSelection().addRange(range);
+        
+    // execute 'copy', can't 'cut' in this case
+    document.execCommand('copy');
+}, false);
 
 
 // dot options

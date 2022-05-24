@@ -154,5 +154,3 @@ function sortNum(n) {
     
   
 }
-
-c
