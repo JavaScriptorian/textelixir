@@ -4,6 +4,9 @@ from math import log2
 import pandas
 import re
 from .exports import export_as_txt
+from .getwords import get_previous_word
+from .getwords import get_next_word
+
 from pkg_resources import resource_filename
 JSDIR = resource_filename('textelixir', 'js')
 CSSDIR = resource_filename('textelixir', 'css')
@@ -15,6 +18,8 @@ class Collocates:
         self.results_count = len(results_indices)
         self.before = before
         self.after = after
+        if self.before > 100 or self.after > 100:
+            raise Exception('Your collocate window is too large. Please set your before and after windows to less than 100.')
         self.word_count = word_count    # Total words in corpus
         self.group_by = group_by
         self.mi_threshold = mi_threshold
@@ -23,11 +28,13 @@ class Collocates:
 
         if self.results_count > 0:
             # Adds the self.collocates_before and self.collocates_after to Collocates class.
-            self.calculate_collocate_samples()
-            # Looks up each word and returns
+            self.collocates_before, self.collocates_after = self.calculate_collocate_samples()
+            # Looks up each word and returns the word's text.
             self.collocates_before = self.collocate_lookup(self.collocates_before)
             self.collocates_after = self.collocate_lookup(self.collocates_after)
             self.sample = self.combine_collocates(self.collocates_before, self.collocates_after)
+        else:
+            return None
 
     def __str__(self):
         return str(dict(sorted(self.sample.items(), key=lambda k: k[1], reverse=True)))
@@ -42,19 +49,19 @@ class Collocates:
         last_chunk = None
     
         # Initialize the collocates that will hold all the word IDs of collocating words.
-        collocates_before_set = set()
-        collocates_after_set = set()
-
+        collocates_before = []
+        collocates_after = []
 
         for block_num, chunk in enumerate(self.elixir):
             if block_num > 0 and len(unfinished_collocations) > 0:
                 while len(unfinished_collocations) > 0:
+                    raise Exception('Jesse, you haven\'t touched this yet!!!')
                     # TODO: If triggered, collocates get messed up!!!
                     unfinished_collocation = unfinished_collocations[0]
                     curr_index = unfinished_collocation['curr_index']
                     collocates_after = self.get_collocates_after(chunk, block_num, unfinished_collocation['curr_index'], unfinished_collocation['collocates'])
                     for collocate in collocates_after:
-                        collocates_after_set.add((collocate,))
+                        collocates_after.add((collocate,))
                     unfinished_collocations.pop(0)
             
 
@@ -71,105 +78,32 @@ class Collocates:
                 block_num2 = int(word2.split(':')[0])
                 
                 if block_num1 != block_num or block_num2 != block_num:
-                    ibrk = 0
+                    raise Exception('There is an unknown case here that hasn\'t been tested... Please report this with the code you are using.')
 
-                collocates_before = self.get_collocates_before(last_chunk, chunk, block_num, curr_index1)
-                for collocate in collocates_before:
-                    collocates_before_set.add((collocate,))
+                words_before = get_previous_word(last_chunk, chunk, block_num, curr_index1, self.before)
+                collocates_before.extend(words_before)
                 
                 # Calculate the collocates AFTER
-                collocates_after = self.get_collocates_after(chunk, block_num, curr_index2)
+                words_after = get_next_word(chunk, block_num, curr_index2, self.after)
                 # Send collocates_after list to unfinished list if it's not the right length.
-                if len(collocates_after) != self.after:
+                if len(words_after) == self.after:
+                    collocates_after.extend(words_after)
+                else:
                     unfinished_collocations.append({
-                        'collocates': collocates_after,
+                        'collocates': words_after,
                         'curr_index': word2
                     })
-                # Otherwise, add it to the collocates_after_count dictionary.
-                else:
-                    for collocate in collocates_after:
-                        collocates_after_set.add((collocate,))
             last_chunk = chunk
         
         # Check to see if any collocations are left unfinished.
         while len(unfinished_collocations) > 0:
             unfinished_collocation = unfinished_collocations[0]
-            collocates_after = self.get_collocates_after(chunk, block_num, unfinished_collocation['curr_index'], unfinished_collocation['collocates'])
-            for collocate in collocates_after:
-                collocates_after_set.add((collocate,))
+            collocates_after.extend(unfinished_collocation['collocates'])
             unfinished_collocations.pop(0)
 
-        self.collocates_before = collocates_before_set
-        self.collocates_after = collocates_after_set
-        print(f'Found {len(collocates_before_set)+len(collocates_after_set)} collocates.')
-        ibrk = 0
 
-    def get_collocates_before(self, last_chunk, chunk, block_num, curr_index, collocate_list=None):
-        # Check to see if collocate_list is None
-        if collocate_list is None:
-            collocate_list = []
-        if len(collocate_list) == self.before:
-            return collocate_list
-        
-        # Get the number of the previous word.
-        find_index = curr_index-1
-        
-        if find_index < 0:
-            find_index = 10000+curr_index-1
-            # If last_chunk is None, then we are at the beginning of block 0.
-            if last_chunk is None:
-                return collocate_list
-            # Otherwise, we can check the last chunk to get the next word.
-            previous_word = last_chunk.iloc[find_index]
-            used_block_num = block_num-1
-        else:
-            used_block_num = block_num
-            previous_word = chunk.iloc[find_index]
-
-
-        # If the pos is PUNCT, let's ignore it and continue to the next word.
-        if previous_word['pos'] == 'PUNCT':
-            collocate_list = self.get_collocates_before(last_chunk, chunk, block_num, curr_index-1, collocate_list)
-        else:
-            collocate_list.append(f'{used_block_num}:{find_index}')
-        if len(collocate_list) != self.before:
-            collocate_list = self.get_collocates_before(last_chunk, chunk, block_num, curr_index-1, collocate_list)
-
-        return collocate_list
-    
-    def get_collocates_after(self, chunk, block_num, curr_index, collocate_list=None):
-        if collocate_list is None:
-            collocate_list = []
-        if len(collocate_list) == self.after:
-            return collocate_list
-
-        # Get the number of the next word
-        # Get the number of the next word
-        if isinstance(curr_index, str):
-            find_index = 0
-            curr_index = -1
-        else:
-            find_index = curr_index+1
-
-        if find_index > 9999:
-            # If the find_index is greater than the chunk size, we will need to add it to the unfinished category.
-            return collocate_list
-        else:
-            try:
-                next_word = chunk.iloc[find_index]
-            except IndexError:
-                return collocate_list
-
-        # If the pos is PUNCT, let's ignore it and continue to the next word.
-        if next_word['pos'] == 'PUNCT':
-            collocate_list = self.get_collocates_after(chunk, block_num, curr_index+1, collocate_list)
-        else:
-            collocate_list.append(f'{block_num}:{find_index}')
-        
-        if len(collocate_list) != self.after:
-            collocate_list = self.get_collocates_after(chunk, block_num, curr_index+1, collocate_list)
-
-        return collocate_list
+        print(f'Found {len(collocates_before)+len(collocates_after)} collocates.')
+        return (collocates_before, collocates_after)
 
 
     # Filters the results_indices list to get only the word citations with the same block number.
@@ -182,25 +116,19 @@ class Collocates:
         return filtered_indices
 
     # Returns the word based on the group_by format.
-    def collocate_lookup(self, collocate_id_set):
+    def collocate_lookup(self, collocate_id_list):
         # Determine format of word lookup by self.group_by
         search_type_list = self.group_by.split('_')
-
+        # Initialize dict { 'TACO_/NOUN/' : 12 }
         collocate_dict = {}
-        self.elixir = pandas.read_csv(self.filename, sep='\t', escapechar='\\', index_col=None, header=0, chunksize=10000)
-        for block_num, chunk in enumerate(self.elixir):
-            curr_indices = self.filter_indices_by_block(collocate_id_set, block_num)
-            for index in curr_indices:
-                # Get the word dataframe from the list.
-                word_df = chunk.iloc[int(index[0].split(':')[-1])]
+
+        for coll_dict in collocate_id_list:
+            for key, word_df in coll_dict.items():
                 # Format the word with an underscore between each search type.
                 formatted_word = []
                 for search_type in search_type_list:
                     w = word_df[search_type]
-                    if search_type == 'pos':
-                        formatted_word.append(f'/{w}/')
-                    else:
-                        formatted_word.append(w)
+                    formatted_word.append(f'/{w}/') if search_type == 'pos' else formatted_word.append(w)
                 formatted_word = '_'.join(formatted_word)
                 
                 if formatted_word not in collocate_dict:
