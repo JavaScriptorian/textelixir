@@ -222,7 +222,7 @@ class KWIC:
 
 
     def export_as_txt(self, output_filename):
-        return export_as_txt(output_filename, [{'text': i} for i in self.kwic_lines], payload=['text'])
+        return export_as_txt(output_filename, self.kwic_lines, payload=['citation', 'line'])
 
     def export_as_html(self, output_filename, group_by='text', ignore_punctuation=False):
         if self.results_count == 0:
