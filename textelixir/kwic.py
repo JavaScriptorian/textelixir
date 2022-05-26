@@ -1,6 +1,9 @@
 import pandas
 from pkg_resources import resource_filename
+from .citations import get_citation
 from .exports import export_as_txt
+from .getwords import get_previous_word
+from .getwords import get_next_word
 
 JSDIR = resource_filename('textelixir', 'js')
 CSSDIR = resource_filename('textelixir', 'css')
@@ -35,13 +38,14 @@ class KWIC:
             # Handle unfinished KWIC lines.
             if block_num > 0 and len(unfinished_kwic) > 0:
                 while len(unfinished_kwic) > 0:
-                    unfinished = unfinished_kwic[0]
-                    if len(unfinished['after']) == 0:
-                        collocates_after = self.get_kwic_ocr_after(chunk, block_num, f'{block_num}:-1', unfinished['after'])
-                    else:
-                        collocates_after = self.get_kwic_ocr_after(chunk, block_num, unfinished['after'][-1], unfinished['after'])
-                    kwic_index_ranges.append((unfinished['before_range'], unfinished['search_words'], collocates_after[-1]))
-                    unfinished_kwic.pop(0)
+                    raise Exception('Jesse, this is broken! You dimwit....')
+                    # unfinished = unfinished_kwic[0]
+                    # if len(unfinished['after']) == 0:
+                    #     collocates_after = self.get_kwic_ocr_after(chunk, block_num, f'{block_num}:-1', unfinished['after'])
+                    # else:
+                    #     collocates_after = self.get_kwic_ocr_after(chunk, block_num, unfinished['after'][-1], unfinished['after'])
+                    # kwic_index_ranges.append((unfinished['before_range'], unfinished['search_words'], collocates_after[-1]))
+                    # unfinished_kwic.pop(0)
 
             curr_indices = self.filter_indices_by_block(self.results_indices, block_num)
             for curr_index in curr_indices:
@@ -59,13 +63,12 @@ class KWIC:
                 if block_num1 != block_num or block_num2 != block_num:
                     ibrk = 0
 
-                kwic_before = self.get_kwic_ocr_before(last_chunk, chunk, block_num, curr_index1)
-                kwic_before_range = kwic_before[-1]
+                kwic_before = get_previous_word(last_chunk, chunk, block_num, curr_index1, self.before)
+                kwic_before_range = next(iter(kwic_before[-1].keys()))
 
-
-                kwic_after = self.get_kwic_ocr_after(chunk, block_num, curr_index2)
+                kwic_after = get_next_word(chunk, block_num, curr_index2, self.after)
                 if len(kwic_after) == self.after:
-                    kwic_after_range = kwic_after[-1]
+                    kwic_after_range = next(iter(kwic_after[-1].keys()))
                 else:
                     kwic_after_range = None
 
@@ -85,7 +88,9 @@ class KWIC:
             if len(unf['after']) == 0:
                 kwic_index_ranges.append((unf['before_range'], unf['search_words'], unf['search_words'][-1]))
             else:
-                kwic_index_ranges.append((unf['before_range'], unf['search_words'], unf['after'][-1]))
+                kwic_index_ranges.append((unf['before_range'], unf['search_words'], next(iter(unf['after'][-1]))))
+
+                
             unfinished_kwic.pop(0)
 
 
@@ -103,6 +108,9 @@ class KWIC:
             
             for curr_index in curr_indices:
                 dataframe_words_list = []
+                # Here we are going to identify the first search word so that we can use it to show the citation of the KWIC line.
+                first_search_word = False 
+                
                 for word in curr_index:
                     word_block, word_idx = word.split(':')
                     # An exclamation point is added to the word_block if it's a search query word. The is_search_query_word flag helps with formatting later.
@@ -124,7 +132,11 @@ class KWIC:
                             'word': last_chunk.iloc[word_idx],
                             'search_query_word': is_search_query_word
                         })
-            
+
+                    if is_search_query_word == True and first_search_word == False:
+                        first_search_word = True
+                        cit = get_citation(dataframe_words_list[-1]['word'])
+
                 kwic_line = ''
                 # Set a boolean to know when to add a tab between words.
                 is_search_query_word = False
@@ -150,7 +162,8 @@ class KWIC:
                         kwic_line += f'\t{word}'
                     else:
                         kwic_line += f'{prefix}{word}'
-                self.kwic_lines.append(kwic_line.strip())
+                self.kwic_lines.append({'citation': cit, 'line':kwic_line.strip()})
+                ibrk = 0
 
             last_chunk = chunk
 
@@ -194,13 +207,6 @@ class KWIC:
             full_kwic_index_ranges.append(kwic_ocr_indices)
         return full_kwic_index_ranges
     
-    def filter_indices_by_block(self, results_indices, block_num):
-        filtered_indices = []
-        for index in results_indices:
-            curr_block_num, word_num = index[-1].split(':')
-            if int(curr_block_num) == block_num:
-                filtered_indices.append(index)
-        return filtered_indices
 
     # Filters the results_indices list to get only the word citations with the same block number.
     def filter_indices_by_block(self, results_indices, block_num):
@@ -213,72 +219,6 @@ class KWIC:
                 filtered_indices.append(index)
         return filtered_indices
 
-    def get_kwic_ocr_before(self, last_chunk, chunk, block_num, curr_index, kwic_list=None):
-        # Check to see if kwic_list is None
-        if kwic_list is None:
-            kwic_list = []
-        if len(kwic_list) == self.before:
-            return kwic_list
-        
-        # Get the number of the previous word.
-        find_index = curr_index-1
-        
-        if find_index < 0:
-            find_index = 10000+curr_index-1
-            # If last_chunk is None, then we are at the beginning of block 0.
-            if last_chunk is None:
-                return kwic_list
-            # Otherwise, we can check the last chunk to get the next word.
-            previous_word = last_chunk.iloc[find_index]
-            used_block_num = block_num-1
-        else:
-            used_block_num = block_num
-            previous_word = chunk.iloc[find_index]
-
-
-        # If the pos is PUNCT, let's ignore it and continue to the next word.
-        if previous_word['pos'] == 'PUNCT':
-            kwic_list = self.get_kwic_ocr_before(last_chunk, chunk, block_num, curr_index-1, kwic_list)
-        else:
-            kwic_list.append(f'{used_block_num}:{find_index}')
-        if len(kwic_list) != self.before:
-            kwic_list = self.get_kwic_ocr_before(last_chunk, chunk, block_num, curr_index-1, kwic_list)
-
-        return kwic_list
-
-
-    def get_kwic_ocr_after(self, chunk, block_num, curr_index, kwic_list=None):
-        if kwic_list is None:
-            kwic_list = []
-        if len(kwic_list) == self.after:
-            return kwic_list
-
-        # Get the number of the next word
-        if isinstance(curr_index, str):
-            find_index = 0
-            curr_index = -1
-        else:
-            find_index = curr_index+1
-
-        if find_index > 9999:
-            # If the find_index is greater than the chunk size, we will need to add it to the unfinished category.
-            return kwic_list
-        else:
-            try:
-                next_word = chunk.iloc[find_index]
-            except IndexError:
-                return kwic_list
-
-        # If the pos is PUNCT, let's ignore it and continue to the next word.
-        if next_word['pos'] == 'PUNCT':
-            kwic_list = self.get_kwic_ocr_after(chunk, block_num, curr_index+1, kwic_list)
-        else:
-            kwic_list.append(f'{block_num}:{find_index}')
-        
-        if len(kwic_list) != self.after:
-            kwic_list = self.get_kwic_ocr_after(chunk, block_num, curr_index+1, kwic_list)
-
-        return kwic_list
 
 
     def export_as_txt(self, output_filename):

@@ -1,9 +1,12 @@
-from .stats import calculate_keywords
-import pandas
-from .exports import export_as_txt
 import csv
-import xlsxwriter
+import pandas
 from pkg_resources import resource_filename
+import xlsxwriter
+
+from .exports import export_as_txt
+from .stats import calculate_keywords
+from .citations import get_citation
+
 JSDIR = resource_filename('textelixir', 'js')
 CSSDIR = resource_filename('textelixir', 'css')
 
@@ -40,7 +43,7 @@ class NGrams:
                 if w['pos'] in self.punct_pos:
                     continue
                 # Get the citation (location) of the word.
-                citation = self.get_citation(chunk, w)
+                # citation = get_citation(w)
                 # If the citation is not the same as the current_citation, then we've hit a new sentence.
                 # Words should not be in an ngram from different sentences.
 
@@ -66,12 +69,6 @@ class NGrams:
         print('\n')
         return sorted_ngram_dict
 
-    def get_citation(self, chunk, word):
-        headers = list(chunk.columns.values)
-        index_of_word_index = headers.index('word_index')
-        citation_headers = headers[0:index_of_word_index]
-        citation = '/'.join([str(word[i])for i in citation_headers])
-        return citation
 
     # Filters the chunk based on optional filters.
     def filter_chunk(self, chunk):

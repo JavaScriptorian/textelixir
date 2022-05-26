@@ -5,10 +5,10 @@ from .kwic import KWIC
 from .collocates import Collocates
 from .sentences import Sentences
 from .vocabdist import VocabDist
+from .getwords import get_previous_word
 
 class SearchResults:
     def __init__(self, filename, search_string, word_count, **kwargs):
-        
         # Parse kwargs
         self.punct_pos = kwargs['punct_pos']
         self.verbose = kwargs['verbose']
@@ -40,20 +40,11 @@ class SearchResults:
         elif isinstance(self.search_string, list):
             search_words = self.search_string[0].split(' ')
 
-        if len(search_words) > 1:
-            search_type = 'phrase'
-        else:
-            search_type = 'word'
-        
+        # Set Search Type 'word' || phrase
+        search_type = 'phrase' if len(search_words) > 1 else 'word'
 
         if search_type == 'word':
-            if isinstance(self.search_string, str):
-                word_type, search_word = self.get_word_type(self.search_string)
-                ibrk = 0
-            elif isinstance(self.search_string, list):
-                # Word type is determined by the first word in the search list.
-                word_type, search_word = self.get_word_type(self.search_string[0])
-            
+            word_type, search_word = self.get_word_type(self.search_string) if isinstance(self.search_string, str) else self.get_word_type(self.search_string[0])
             results_indices = self.filter_elixir(self.search_string, word_type)
 
         elif search_type == 'phrase':
@@ -81,12 +72,12 @@ class SearchResults:
                             word_index = int(word_index)
 
                             if curr_block_num != block_num:
-                                ibrk = 0
+                                raise Exception(f'The current block num {curr_block_num} is not the same as block num {block_num}')
 
-                            if block_num == 0:
-                                previous_words = self.get_previous_words(None, chunk, block_num, word_index, curr_block_num, distance)
-                            else:
-                                previous_words = self.get_previous_words(last_chunk, chunk, block_num, word_index, curr_block_num, distance)
+                            last_chunk = last_chunk if block_num != 0 else None
+                            
+                            # Get previous words
+                            previous_words = get_previous_word(last_chunk, chunk, block_num, word_index, distance)
                             
                             # Filter those previous words for good hits.
                             good_hit = None
@@ -191,16 +182,14 @@ class SearchResults:
                 for word in found_words.to_dict('index'):
                     find_index = word-(block_num*10000)
                     results.append((f'{block_num}:{find_index}',))
-            # Collocates Handle
+            
+            # Collocates Handler
             elif isinstance(search_word, list):
                 for word in search_word:
                     word_specs = [re.sub(r'^/(.+?)/$', r'\1', w) for w in re.split(r'(?<!\\)_', word)]
                     # TODO: HANLDE WILDCARDS HERE
                     for wt_idx, wt in enumerate(word_type):
-                        if wt_idx == 0:
-                            found_words = chunk[chunk[wt] == word_specs[wt_idx]]
-                        else:
-                            found_words = found_words[found_words[wt] == word_specs[wt_idx]]
+                        found_words = chunk[chunk[wt] == word_specs[wt_idx]] if wt_idx == 0 else found_words[found_words[wt] == word_specs[wt_idx]]
                     if word not in results:
                         results[word] = 0
                     results[word] += len(found_words)
@@ -215,38 +204,6 @@ class SearchResults:
             if int(curr_block_num) == block_num:
                 filtered_indices.append(index)
         return filtered_indices
-
-    def get_previous_words(self, last_chunk, chunk, block_num, curr_index, curr_block_num, distance, word_list=None):
-        if word_list == None:
-            word_list = []
-        if len(word_list) == distance:
-            return word_list
-
-        # Get the number of the previous word.
-        find_index = curr_index-1
-        
-        if find_index < 0:
-            find_index = 10000+curr_index-1
-            # If last_chunk is None, then we are at the beginning of block 0.
-            if last_chunk is None:
-                return word_list
-            # Otherwise, we can check the last chunk to get the next word.
-            previous_word = last_chunk.iloc[find_index]
-            used_block_num = block_num-1
-        else:
-            previous_word = chunk.iloc[find_index]
-            used_block_num = block_num
-
-
-        # If the pos is PUNCT, let's ignore it and continue to the next word.
-        if previous_word['pos'] == 'PUNCT':
-            word_list = self.get_previous_words(last_chunk, chunk, block_num, curr_index-1, curr_block_num, distance, word_list)
-        else:
-            word_list.append({f'{used_block_num}:{find_index}': previous_word})
-        if len(word_list) != distance:
-            word_list = self.get_previous_words(last_chunk, chunk, block_num, curr_index-1, curr_block_num, distance, word_list)
-
-        return word_list
 
     # Filters the chunk based on optional filters.
     def filter_chunk(self, chunk):
