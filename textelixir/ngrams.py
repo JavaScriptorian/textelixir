@@ -3,6 +3,7 @@ import pandas
 from pkg_resources import resource_filename
 import xlsxwriter
 
+
 from .exports import export_as_txt
 from .stats import calculate_keywords
 from .citations import get_citation
@@ -36,7 +37,7 @@ class NGrams:
         # Iterate through each chunk of the elix file.
         for block_num, chunk in enumerate(self.elixir):
             chunk = self.filter_chunk(chunk)
-            print(f'\rN-Gram Progress: {round((block_num+1)/self.chunk_num*100, 2)}%', end='')
+            print(f'\rN-Gram Progress: {round((block_num+1)/self.chunk_num*100, 2)}%   ', end='')
             # Iterate through each word in the chunk.
             for w in chunk.to_dict('records'):
                 # Check to see if the word is punctuation.
