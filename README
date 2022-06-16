@@ -1,1 +1,128 @@
-Documentation to come later.
+
+# TextElixir
+
+TextElixir is a Python module that facilitates the data collection and analysis of textual corpora. While some programs like AntConc and WordCruncher are faster in speed, TextElixir provides the flexibility to gather data on limitless queries without needing to navigate through a graphical interface. 
+
+
+## Installation
+
+Install textelixir with pip
+
+```bash
+pip install textelixir
+```
+
+
+    
+## Importing TextElixir
+
+```bash
+from textelixir import TextElixir
+```
+## Tagging Text File(s)
+
+```bash
+elixir = TextElixir('text.txt', lang='en', tagger_option='spacy:efficient:pos')
+```
+
+
+# Search
+Performing a search is one of the main methods that you can use on a **TextElixir**. The search method returns a **SearchResults** class, which contains the frequency of the search query and a list of indices for where your search query occurs in the corpus. The SearchResults class contains several other methods for calculating collocates, frequency distribution charts, sentences, and concordance lines.
+## Searching for a Word
+
+```bash
+results = elixir.search('engage')
+```
+## Searching for a Lemma
+
+```bash
+results = elixir.search('ENGAGE')
+```
+
+
+## Searching for a Part of Speech
+
+```bash
+results = elixir.search('/VERB/')
+```
+
+
+## Searching for a Word with its Part of Speech
+
+```bash
+results = elixir.search('leaves_NOUN')
+```
+
+
+## Searching for a Lemma with its Part of Speech
+
+```bash
+results = elixir.search('ADVOCATE_NOUN')
+```
+## Searching for a Phrase
+
+```bash
+results = elixir.search('/ADJ/ cat')
+```
+## Searching with Wildcards
+
+```bash
+# Find inform, informs, information, etc.
+results = elixir.search('inform*') 
+# Find bat, cat, etc.
+results = elixir.search('?at') 
+```
+## Searching with Regular Expressions
+
+```bash
+# Find 4-digit numbers
+results = elixir.search(r'\d{4}', regex=True)
+```
+## Search for Words Separated by Distance
+
+```bash
+# Finds the word 'supporter' 1-5 words away from the lemma 'cat'
+results = elixir.search('supporter ~5~ CAT')
+```
+# Filter the Corpus Prior to Search
+Filters can be applied to a corpus prior to searching. This allows you to get data on specific sections of your corpus rather than the entire corpus.
+
+## Positive Filter
+```
+# Searches for the word 'advocate' as long as it's within the category of 'Philosophy'
+results = elixir.search('advocate', text_filter={'category': 'Philosophy'})
+```
+## Negative Filter
+```
+# Searches for the word 'advocate' as long as it's NOT within the category of 'Philosophy'
+results = elixir.search('advocate', text_filter={'category': '!Philosophy'})
+```
+# Calculate KWIC/Concordance Lines
+
+```
+kwic = results.kwic_lines(before=8, after=8, group_by='lower')
+```
+
+
+## Export KWIC Lines to HTML
+This will generate a webpage with an interface to sort and filter KWIC lines. You can also switch the display of columns to show pos, lemma, and lower text.
+
+```
+results.export_as_html('my_kwic_lines.html')
+```
+
+
+## Export KWIC Lines to TXT
+
+This will generate a text file with just the KWIC lines. There is a tab character before and after the search hit, making it easy to paste into Google Sheets.
+
+```
+results.export_as_txt('my_kwic_lines.txt')
+```
+# Calculate Sentences
+
+Get the full sentence for more context of your search query.
+
+```
+sentences = results.sentences()
+```
