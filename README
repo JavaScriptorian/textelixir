@@ -19,12 +19,42 @@ pip install textelixir
 ```bash
 from textelixir import TextElixir
 ```
-## Tagging Text File(s)
 
-```bash
-elixir = TextElixir('text.txt', lang='en', tagger_option='spacy:efficient:pos')
+## Tagging a Corpus
+
+```http
+  elixir = TextElixir('my_corpus.txt', lang='en', tagger_option='spacy:efficient:pos')
 ```
 
+| Parameter | Type     | Description                |
+| :-------- | :------- | :------------------------- |
+| `filename` | `string` or `glob` | **Required**. Accepts a path to a filename, which can be a TXT file, a TSV file, or a glob of multiple TXT files. |
+| `lang` | `string` | **Optional**. Accepts a language code. Defaults to `en` for English. For available languages, see [SpaCy](https://spacy.io/models) or [Stanza](https://stanfordnlp.github.io/stanza/available_models.html) for available tagging models. |
+| `tagger_option` | `string` | **Required**. Accepts one of these for options for tagging:<br>`spacy:efficient:pos`: Uses a fast SpaCy tagger and uses tags like VERB, NOUN<br>`spacy:accurate:xpos`: Uses a slow SpaCy tagger and uses tags like VBZ, NN1<br>`stanza:pos`: Uses a Stanza tagger and uses tags like VERB, NOUN<br>`stanza:xpos`: Uses a Stanza tagger and uses tags like VBZ, NN1|
+
+TextElixir will tag a TXT file, a glob of TXT files, or a TSV file. By running this line of code, it'll create a subfolder within the directory you provide and add all of the POS tags and lemmas to each word. By saving the tagged corpus into that subfolder, this line only needs to be run once.
+
+If you provide a TSV file, make sure that each column has headers and that the column with the text you want tagged has the column header of `text`. By doing this, you can use the other columns for search filtering and reference grouping.
+ 
+If you provide a glob of TXT files, the filename will still be associated to each word within the corpus, which helps with basic search filtering if the text filename has a semantic meaning.
+ 
+TextElixir has a couple options for different taggers to use. At the moment, you can have TextElixir tag your text with SpaCy or Stanza taggers. The modules for spacy and stanza are included in the installation of TextElixir, but the language models for each must be downloaded prior to tagging a text.
+
+
+
+## Loading the Tagged Corpus
+
+```http
+  elixir = TextElixir('my_corpus', verbose=False, punct_pos=['PUNCT', 'SYM', 'SPACE'])
+```
+
+| Parameter | Type     | Description                |
+| :-------- | :------- | :------------------------- |
+| `filename` | `string` | **Required**. Accepts the name of the subdirectory created when tagging a corpus. |
+| `verbose` | `boolean` | **Optional**. If False, it turns off any messages printed out to the terminal. Defaults to True. |
+| `punct_pos` | `list` | **Optional**. Accepts a list of strings of the parts of speech that you want to consider `subwords`. These words will be skipped when doing searches and when calculating collocates, ngrams, etc. To search for punctuation, you'll need to set this argument to an empty list.|
+
+When loading a tagged corpus, the `lang` and `tagger_option` arguments are no longer needed.
 
 # Search
 Performing a search is one of the main methods that you can use on a **TextElixir**. The search method returns a **SearchResults** class, which contains the frequency of the search query and a list of indices for where your search query occurs in the corpus. The SearchResults class contains several other methods for calculating collocates, frequency distribution charts, sentences, and concordance lines.

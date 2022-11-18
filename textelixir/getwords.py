@@ -5,7 +5,7 @@
 # dst = distance (the length of word list required to exit out of the function)
 # wl = word list (the list which is returned with dictionaries containing the block ID info and pandas word dataframe)
 
-def get_previous_word(lc, ch, bn, idx, dst, wl=None):
+def get_previous_word(lc, ch, bn, idx, dst, punct, wl=None):
     # Set word list to be empty list if it's None
     wl = wl if wl != None else []
     # If the length of the wl meets the criteria, then we can exit out of the recursion.
@@ -15,7 +15,7 @@ def get_previous_word(lc, ch, bn, idx, dst, wl=None):
     find_index = idx-1
     # If the find index is less than 0, then it must search in the lc.
     if find_index < 0:
-        find_index = 10000+idx-1
+        find_index = 1000000+idx-1
         # If lc is None, then we are at the beginning of block 0.
         if lc is None:
             return wl
@@ -28,12 +28,12 @@ def get_previous_word(lc, ch, bn, idx, dst, wl=None):
 
 
     # If the pos is PUNCT, let's ignore it and continue to the next word.
-    if previous_word['pos'] == 'PUNCT':
-        wl = get_previous_word(lc, ch, bn, idx-1, dst, wl)
+    if previous_word.word in punct:
+        wl = get_previous_word(lc, ch, bn, idx-1, dst, punct, wl)
     else:
         wl.append({f'{used_bn}:{find_index}': previous_word})
     if len(wl) != dst:
-        wl = get_previous_word(lc, ch, bn, idx-1, dst, wl)
+        wl = get_previous_word(lc, ch, bn, idx-1, dst, punct, wl)
 
     return wl
 
@@ -50,7 +50,7 @@ def get_next_word(ch, bn, idx, dst, wl=None):
     else:
         find_index = idx+1
 
-    if find_index > 9999:
+    if find_index > 999999:
         # If the find_index is greater than the chunk size, we will need to add it to the unfinished category.
         return wl
     else:

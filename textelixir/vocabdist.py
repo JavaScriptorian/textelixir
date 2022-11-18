@@ -1,42 +1,47 @@
-from lib2to3.pytree import convert
+
 import pandas
 import plotly.express as px
+import re
+import itertools
 
 class VocabDist:
-    def __init__(self, filename, group_by=0, results_indices=None, punct_pos=None, search_string=''):
+    def __init__(self, filename, group_by=0, results=None, punct_pos=None, search_string='', **kwargs):
         self.filename = filename
+        self.basename = re.sub(r'^(.+)/[^/]+$', r'\1', self.filename)
         self.group_by = group_by
-        self.results_indices = results_indices
-        self.search_length = len(self.results_indices[0])
+        self.match = kwargs['match']
+        self.replace = kwargs['replace']
+        self.results = results
+        self.search_length = len(self.results[search_string[0]])
         self.punct_pos = punct_pos
-        self.search_string =search_string
+        self.punct_word_ids = self.get_metadata('word', pos=[self.punct_pos])
+        self.search_string = search_string
+        # Create empty tables dictionary
+        self.tables = {}
         self.data = self.calculate_distribution()
         self.data = self.add_totals(self.data)
         self.data = self.add_expected(self.data)
         self.data = self.add_normalized_freq(self.data)
 
     def calculate_distribution(self):
-        self.elixir = pandas.read_csv(self.filename, sep='\t', escapechar='\\', index_col=None, header=0, chunksize=10000)
+        elixir = pandas.read_csv(self.filename, sep='\t', escapechar='\\', index_col=None, header=0, chunksize=1000000, keep_default_na=False, na_values=[])
         data = {}
-        convert_to_str_list = []
-        for block_num, chunk in enumerate(self.elixir):
+        for block_num, chunk in enumerate(elixir):
             
             # Figure out which column header should be used for the distribution of the vocabulary.
             if block_num == 0:
                 # Save this to object because it'll be needed later anyway.
                 self.column_headers = self.determine_column_header(chunk)
-                # If the data type is not an object, then it needs to be converted into a str type object.
-                for ch in self.column_headers:
-                    if chunk.dtypes[ch].name != 'object':
-                        # Add it to the convert to str list so it knows to convert that column every time.
-                        convert_to_str_list.append(ch)
+                for column_header in self.column_headers:
+                    self.tables[column_header] = self.get_header_table(column_header)
                         
-            for column in convert_to_str_list:
-                chunk[column] = chunk[column].apply(str)
-            curr_indices = self.filter_indices_by_block(self.results_indices, block_num)
+            curr_indices = self.filter_indices_by_block(self.results, block_num)
             for curr_index in curr_indices:
-                word_num = int(curr_index[0].split(':')[1])
-                citation = '/'.join([chunk.iloc[word_num][c]for c in self.column_headers])
+                w = chunk.loc[curr_index[0]]
+                if self.match and self.replace:
+                    citation = '/'.join(re.sub(self.match, self.replace, str(self.tables[column_header][w[column_header]])) for column_header in self.column_headers)
+                else:
+                    citation = '/'.join([str(self.tables[column_value][w[column_value]]) for idx, column_value in enumerate(self.column_headers)])
                 if citation not in data:
                     data[citation] = {
                         'freq': 0,
@@ -44,20 +49,36 @@ class VocabDist:
                         'expected': 0,
                         'normFreq': 0
                         }
-                ibrk = 0
-
                 data[citation]['freq'] += 1
         return data
 
+    def get_metadata(self, table_name, **kwargs):
+        key = list(kwargs.keys())[0]
+        value = list(kwargs.values())[0]
+        metadata = pandas.read_csv(f'{self.basename}/{table_name}.tsv', sep='\t', escapechar='\\', index_col=None, header=0, keep_default_na=False, na_values=[])
+        if isinstance(value, list):
+            filtered_metadata = metadata[metadata[key].isin(value[0])]
+        else:
+            filtered_metadata = metadata[metadata[key] == value]
+        return filtered_metadata['index'].to_list()
+
+    def get_header_table(self, table_name):
+        metadata = pandas.read_csv(f'{self.basename}/{table_name}.tsv', sep='\t', escapechar='\\', index_col=None, header=0, keep_default_na=False, na_values=[])
+        metadata['value'] = metadata['value'].astype(str)
+        return dict(zip(metadata['index'], metadata['value']))
     
     def add_totals(self, data):
-        self.elixir = pandas.read_csv(self.filename, sep='\t', escapechar='\\', index_col=None, header=0, chunksize=10000)
-        for block_num, chunk in enumerate(self.elixir):
+        elixir = pandas.read_csv(self.filename, sep='\t', escapechar='\\', index_col=None, header=0, chunksize=1000000, keep_default_na=False, na_values=[])
+        for block_num, chunk in enumerate(elixir):
             # Eliminate punctuation from the ch
-            filtered_chunk = chunk[~chunk['pos'].isin(self.punct_pos)]
+            filtered_chunk = chunk[~chunk['word'].isin(self.punct_word_ids)]
             value_counts = filtered_chunk[self.column_headers].value_counts()
             for key, value in value_counts.to_dict().items():
-                name = [str(i) for i in key]
+                # TODO: This structure currently only works if there's one column specified...
+                if self.match and self.replace:
+                    name = [re.sub(self.match, self.replace, self.tables[self.column_headers[0]][key[0]])]
+                else:
+                    name = [str(self.tables[self.column_headers[idx]][column_value]) for idx, column_value in enumerate(key)]
                 citation = '/'.join(name)
                 if citation not in data:
                     data[citation] = {
@@ -68,22 +89,15 @@ class VocabDist:
                     }
                 data[citation]['total'] += value
         
-        
-        if self.search_length == 1:
-            return data
-        
-        # Subtract n words from each total if the search length is longer than 1.
-        for k, v in data.items():
-            data[k]['total'] -= self.search_length-1
+        # TODO: Remove one from total if the word is more than 1 word.
         return data
-        ibrk = 0
 
     def add_expected(self, data):
         corpus_total = sum([v['total']for k, v in data.items()])
         for k, v in data.items():
             percentage = v['total'] / corpus_total
             data[k]['percent'] = round(percentage * 100, 2)
-            data[k]['expected'] = round(percentage * len(self.results_indices),1)
+            data[k]['expected'] = round(percentage * len(self.results),1)
             ibrk = 0
         return data
 
@@ -104,13 +118,12 @@ class VocabDist:
         else:
             assert Exception('Please provide a string for your group_by argument.')
 
-    def filter_indices_by_block(self, results_indices, block_num):
+    def filter_indices_by_block(self, results, block_num):
         filtered_indices = []
-        for index in results_indices:
-            curr_block_num, word_num = index[-1].split(':')
-            if int(curr_block_num) == block_num:
-                filtered_indices.append(index)
-        return filtered_indices
+        for search_word, result_list in results.items():
+            filtered_indices.extend([indices for indices in result_list if (indices[0] >= block_num*1000000 and indices[0] < (block_num*1000000) + 1000000)])
+        filtered_indices.sort()
+        return list(k for k,_ in itertools.groupby(filtered_indices))
 
     def show_chart(self, output_metric='normFreq', **kwargs):
         x_name = kwargs['x'] if 'x' in kwargs else self.group_by
@@ -157,6 +170,7 @@ class VocabDist:
         y_name = kwargs['y'] if 'y' in kwargs else output_metric
         hide_zeros = kwargs['hide_zeros'] if 'hide_zeros' in kwargs else False
         chart_title = kwargs['chart_title'] if 'chart_title' in kwargs else f'Vocabulary Distribution for "{self.search_string}"'
+
         sort_x = kwargs['sort_x'] if 'sort_x' in kwargs else None
         sort_y = kwargs['sort_y'] if 'sort_y' in kwargs else None
         limit = kwargs['limit'] if 'limit' in kwargs else 0
@@ -187,9 +201,9 @@ class VocabDist:
         if limit > 0:
             zipped_data = zipped_data[0:limit]
 
-        df = pandas.DataFrame(zipped_data, columns =[x_name, y_name])
-        fig = px.bar(df, x=x_name, y=y_name, title=chart_title)
-        fig.write_image(filename)
+        df = pandas.DataFrame(zipped_data, columns=[x_name, y_name])
+        fig = px.bar(df, x=x_name, y=y_name, title=chart_title, text_auto=True)
+        fig.write_image(filename, scale=8)
 
     def export_as_txt(self, filename):
         with open(filename, 'w', encoding='utf-8') as file_out:
