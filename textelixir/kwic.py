@@ -1,230 +1,126 @@
 import pandas
+import re
 from pkg_resources import resource_filename
-from .citations import get_citation
 from .exports import export_as_txt
-from .getwords import get_previous_word
-from .getwords import get_next_word
+from .filter_indices_by_block import *  # filter_indices_by_block(results, block_num)
+from .get_metadata import *
+from .get_word_data import *            # get_word_data(basename, word_types)
 
 JSDIR = resource_filename('textelixir', 'js')
 CSSDIR = resource_filename('textelixir', 'css')
 IMGDIR = resource_filename('textelixir', 'img')
 
 class KWIC:
-    def __init__(self, filename, results_indices, before, after, group_by='lower', search_string='', punct_pos=''):
+    def __init__(self, filename, results, before, after, group_by='lower', search_string='', punct_pos=''):
         self.filename = filename
-        self.results_indices = results_indices
-        self.results_count = len(results_indices)
-        if self.results_count == 0:
-            return None
+        self.basename = re.sub(r'^(.+)/[^/]+$', r'\1', self.filename)
+        self.results = results
         self.before = before
         self.after = after
         self.group_by = group_by
         self.search_string = search_string
         self.punct_pos = punct_pos
-        if self.results_count > 0:
-            self.kwic_index_ranges = self.calculate_kwic_line_indices()
-            self.calculate_kwic_lines()
+        self.punct_word_ids = get_metadata(self.basename, 'word', pos=[self.punct_pos])
+        
+        self.kwic_lines = self.get_kwic_lines(self.results)
 
-    def calculate_kwic_line_indices(self):
-        self.elixir = pandas.read_csv(self.filename, sep='\t', escapechar='\\', index_col=None, header=0, chunksize=10000)
+    def get_kwic_lines(self, results):
+        kwic_dfs = self.get_kwic_dfs(results)
+        return self.get_kwic_text(kwic_dfs)
 
-        unfinished_kwic = []
-        last_chunk = None
-
-        kwic_index_ranges = []
-
-
-        for block_num, chunk in enumerate(self.elixir):
-            # Handle unfinished KWIC lines.
-            if block_num > 0 and len(unfinished_kwic) > 0:
-                while len(unfinished_kwic) > 0:
-                    raise Exception('Jesse, this is broken! You dimwit....')
-                    # unfinished = unfinished_kwic[0]
-                    # if len(unfinished['after']) == 0:
-                    #     collocates_after = self.get_kwic_ocr_after(chunk, block_num, f'{block_num}:-1', unfinished['after'])
-                    # else:
-                    #     collocates_after = self.get_kwic_ocr_after(chunk, block_num, unfinished['after'][-1], unfinished['after'])
-                    # kwic_index_ranges.append((unfinished['before_range'], unfinished['search_words'], collocates_after[-1]))
-                    # unfinished_kwic.pop(0)
-
-            curr_indices = self.filter_indices_by_block(self.results_indices, block_num)
-            for curr_index in curr_indices:
-                word1 = curr_index[0]
-                word2 = curr_index[-1]
-
-
-                curr_index1 = int(word1.split(':')[-1])
-                curr_index2 = int(word2.split(':')[-1])
-
-                block_num1 = int(word1.split(':')[0])
-                block_num2 = int(word2.split(':')[0])
-
-                # TODO: Verify that block numbers are appropriately being logged.
-                if block_num1 != block_num or block_num2 != block_num:
-                    ibrk = 0
-
-                kwic_before = get_previous_word(last_chunk, chunk, block_num, curr_index1, self.before)
-                kwic_before_range = next(iter(kwic_before[-1].keys()))
-
-                kwic_after = get_next_word(chunk, block_num, curr_index2, self.after)
-                if len(kwic_after) == self.after:
-                    kwic_after_range = next(iter(kwic_after[-1].keys()))
-                else:
-                    kwic_after_range = None
-
-                if kwic_after_range != None:
-                    kwic_index_ranges.append((kwic_before_range, curr_index, kwic_after_range))
-                else:
-                    unfinished_kwic.append({
-                        'before_range': kwic_before_range,
-                        'search_words': curr_index,
-                        'after': kwic_after
-                    })
-            last_chunk = chunk
-
-        # Check for any unfinished KWIC lines left untouched at the end of the corpus.
-        while len(unfinished_kwic) > 0:
-            unf = unfinished_kwic[0]
-            if len(unf['after']) == 0:
-                kwic_index_ranges.append((unf['before_range'], unf['search_words'], unf['search_words'][-1]))
-            else:
-                kwic_index_ranges.append((unf['before_range'], unf['search_words'], next(iter(unf['after'][-1]))))
-
-                
-            unfinished_kwic.pop(0)
-
-
-        return kwic_index_ranges
-
-    def calculate_kwic_lines(self):
-        self.kwic_lines = []
-        last_chunk = None
-
-        self.full_kwic_index_ranges = self.get_full_index_ranges()
-        self.elixir = pandas.read_csv(self.filename, sep='\t', escapechar='\\', index_col=None, header=0, chunksize=10000)
-        for block_num, chunk in enumerate(self.elixir):
-            curr_indices = self.filter_indices_by_block(self.full_kwic_index_ranges, block_num)
-            
-            
-            for curr_index in curr_indices:
-                dataframe_words_list = []
-                # Here we are going to identify the first search word so that we can use it to show the citation of the KWIC line.
-                first_search_word = False 
-                
-                for word in curr_index:
-                    word_block, word_idx = word.split(':')
-                    # An exclamation point is added to the word_block if it's a search query word. The is_search_query_word flag helps with formatting later.
-                    if word_block.startswith('!'):
-                        is_search_query_word = True
-                        word_block = word_block[1:]
-                    else:
-                        is_search_query_word = False
-                    word_block = int(word_block)
-                    word_idx = int(word_idx)
-
-                    if word_block == block_num:
-                        dataframe_words_list.append({
-                            'word': chunk.iloc[word_idx],
-                            'search_query_word': is_search_query_word
-                        })
-                    else:
-                        dataframe_words_list.append({
-                            'word': last_chunk.iloc[word_idx],
-                            'search_query_word': is_search_query_word
-                        })
-
-                    if is_search_query_word == True and first_search_word == False:
-                        first_search_word = True
-                        cit = get_citation(dataframe_words_list[-1]['word'])
-
-                kwic_line = ''
-                # Set a boolean to know when to add a tab between words.
-                is_search_query_word = False
-                for i in dataframe_words_list:
-                    prefix = str(i['word']['prefix'])
-                    # TODO: Make this more apparent in the tagger!!!
-                    if prefix == 'nan':
-                        prefix = ''
-
-                    # Handle different group_by options.
-                    if self.group_by == 'lemma_pos':
-                        word = f'{i["word"]["lemma"]}_{i["word"]["pos"]}'
-                    elif self.group_by == 'lower_pos':
-                        word = f'{i["word"]["lower"]}_{i["word"]["pos"]}'
-                    else:
-                        word = i['word'][self.group_by]
-
-                    if is_search_query_word == False and i['search_query_word'] == True:
-                        is_search_query_word = True
-                        kwic_line += f'\t{word}'
-                    elif is_search_query_word == True and i['search_query_word'] == False:
-                        is_search_query_word = False
-                        kwic_line += f'\t{word}'
-                    else:
-                        kwic_line += f'{prefix}{word}'
-                self.kwic_lines.append({'citation': cit, 'line':kwic_line.strip()})
-                ibrk = 0
-
-            last_chunk = chunk
-
-    def get_full_index_ranges(self):
-        full_kwic_index_ranges = []
-
-        # Get the range for every word in KWIC lines needed...
-        for curr_index in self.kwic_index_ranges:
-            min_index = curr_index[0]
-            max_index = curr_index[-1]
-
-            min_block, min_idx = min_index.split(':')
-            min_block = int(min_block)
-            min_idx = int(min_idx)
-
-            max_block, max_idx = max_index.split(':')
-            max_block = int(max_block)
-            max_idx = int(max_idx)
-            
-            # Check for any block crossing.
-            kwic_ocr_indices = []
-            if min_block != max_block:
-                for i in range(min_idx, 10000):
-                    if f'{min_block}:{i}' in curr_index[1]:
-                        kwic_ocr_indices.append(f'!{min_block}:{i}')
-                    else:
-                        kwic_ocr_indices.append(f'{min_block}:{i}')
-                for i in range(0, max_idx):
-                    if f'{max_block}:{i}' in curr_index[1]:
-                        kwic_ocr_indices.append(f'!{max_block}:{i}')
-                    else:
-                        kwic_ocr_indices.append(f'{max_block}:{i}')
-            else:
-                for i in range(min_idx, max_idx+1):
-                    # Check to see if the word is part of the search query. Add an ! next to it if so.
-                    if f'{min_block}:{i}' in curr_index[1]:
-                        kwic_ocr_indices.append(f'!{min_block}:{i}')
-                    else:
-                        kwic_ocr_indices.append(f'{min_block}:{i}')
-            kwic_ocr_indices = tuple(kwic_ocr_indices)
-            full_kwic_index_ranges.append(kwic_ocr_indices)
-        return full_kwic_index_ranges
     
-
-    # Filters the results_indices list to get only the word citations with the same block number.
-    def filter_indices_by_block(self, results_indices, block_num):
-        filtered_indices = []
-        for index in results_indices:
-            curr_block_num, word_num = index[-1].split(':')
-            if curr_block_num.startswith('!'):
-                curr_block_num = curr_block_num[1:]
-            if int(curr_block_num) == block_num:
-                filtered_indices.append(index)
-        return filtered_indices
+    def get_kwic_dfs(self, results):
+        elixir = pandas.read_csv(self.filename, sep='\t', escapechar='\\', index_col=None, header=0, chunksize=1000000, keep_default_na=False, na_values=[])
+        kwic_dfs = []
+        unfinished_segments = []
+        for block_num, chunk in enumerate(elixir):
+            curr_indices = filter_indices_by_block(results, block_num)
 
 
+            for curr_index in curr_indices:
+                w1_order = int(curr_index[0])
+                w2_order = int(curr_index[-1])
+
+                next_find = int(w1_order)
+                before_indices = []
+                
+                while len(before_indices) < self.before:
+                    next_find -= 1
+                    # Check for less than zero boundary.
+                    if next_find < 0:
+                        break
+                    # Get the next word in the chunk.
+                    if (next_find >= block_num*1000000 and next_find < (block_num*1000000) + 1000000):
+                        next_word = chunk.loc[next_find].word
+                    else:
+                        next_word = last_chunk[next_find].word
+
+                    if next_word not in self.punct_word_ids:
+                        before_indices.append(next_find)
+
+                next_find = int(w2_order)
+                after_indices = []
+                while len(after_indices) < self.after:
+                    next_find += 1
+                    # Check for 1mil boundary.
+                    if next_find >= (block_num*1000000) + 1000000:
+                        unfinished_segments.append({'before': before_indices, 'hit': curr_indices, 'after': after_indices})
+                        break
+                    # Check for unfinished segments.
+                    if len(unfinished_segments) > 0:
+                        raise Exception('There are unfinished segments that have not been resolved')
+                    
+                    try:
+                        next_word = chunk.loc[next_find].word
+                    except KeyError: # If there is a KeyError here, it means you're at the end of the corpus.
+                        break
+                    if next_word not in self.punct_word_ids:
+                        after_indices.append(next_find)
+
+                kwic_min = before_indices[-1]
+                kwic_max = after_indices[-1]
+
+                kwic_df = chunk.loc[kwic_min:kwic_max]
+                kwic_dfs.append({'df': kwic_df, 'hits': curr_index})   
+            last_chunk = chunk
+        return kwic_dfs
+
+    
+    def get_kwic_text(self, kwic_dfs):
+        kwic_lines = []
+        word_data = get_word_data(self.basename, ['prefix', 'lower', 'lemma', 'pos'])
+        for kwic_df in kwic_dfs:
+            hits = kwic_df['hits']
+            df = kwic_df['df']
+            row = list(zip(list(df.index), list(df.word)))
+
+            kwic_line = ''
+            for word in row:
+                prefix = word_data['prefix'][word[1]]
+                text = word_data[self.group_by][word[1]]
+
+                if word[0] in hits:
+                    if word[0] == hits[0]:
+                        kwic_line += '\t'
+                    kwic_line += f'{prefix}{text}'
+
+                    if word[0] == hits[-1]:
+                        kwic_line += '\t'
+                else:
+                    kwic_line += f'{prefix}{text}'
+            kwic_line = re.sub(r'\t +?', r'\t', kwic_line).strip()
+            kwic_lines.append(kwic_line)
+        return kwic_lines
 
     def export_as_txt(self, output_filename):
         return export_as_txt(output_filename, self.kwic_lines, payload=['citation', 'line'])
 
-    def export_as_html(self, output_filename, group_by='text', ignore_punctuation=False):
+    def export_as_html(self, output_filename, group_by='text'):
+        word_data = get_word_data(self.basename, ['prefix', 'lower', 'lemma', 'pos'])
+
+        for kwic_df in self.kwic_dfs:
+            pass
+
         if self.results_count == 0:
             print('Cannot export KWIC lines when there are no results.')
             return
