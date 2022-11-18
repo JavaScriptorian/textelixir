@@ -58,18 +58,47 @@ class KWIC:
                     if next_word not in self.punct_word_ids:
                         before_indices.append(next_find)
 
+
+                # Resolve any unfinished after_indices
+                if len(unfinished_segments) > 0:
+                    while len(unfinished_segments) > 0:
+                        unfinished_segment = unfinished_segments[0]
+                        next_find = unfinished_segment['last_find']
+                        after_indices = unfinished_segment['after_indices']
+                        
+                        while len(after_indices) < self.after:
+                            next_find += 1
+                            try:
+                                next_word = chunk.loc[next_find].word
+                            except KeyError: 
+                                break
+                            if next_word not in self.punct_word_ids:
+                                after_indices.append(next_find)
+
+                        unfinished_segments.pop(0)
+
+                        del unfinished_segment['after_indices']
+                        del unfinished_segment['last_find']
+                    
+                        after_indices = [i for i in after_indices if i != -1]
+                        unfinished_segment['df'] = pandas.concat([unfinished_segment['df'], chunk.loc[after_indices[0]:after_indices[-1]]])
+                        kwic_dfs.append(unfinished_segment)
+
+
                 next_find = int(w2_order)
                 after_indices = []
                 while len(after_indices) < self.after:
                     next_find += 1
                     # Check for 1mil boundary.
                     if next_find >= (block_num*1000000) + 1000000:
-                        unfinished_segments.append({'before': before_indices, 'hit': curr_indices, 'after': after_indices})
+                        unfinished_segments.append(
+                            {
+                                'df': chunk.loc[before_indices[-1]:after_indices[-1]], 
+                                'hits': curr_index, 
+                                'after_indices': [-1 for i in range(0, len(after_indices))],
+                                'last_find': after_indices[-1]
+                                })
                         break
-                    # Check for unfinished segments.
-                    if len(unfinished_segments) > 0:
-                        raise Exception('There are unfinished segments that have not been resolved')
-                    
                     try:
                         next_word = chunk.loc[next_find].word
                     except KeyError: # If there is a KeyError here, it means you're at the end of the corpus.
@@ -77,10 +106,7 @@ class KWIC:
                     if next_word not in self.punct_word_ids:
                         after_indices.append(next_find)
 
-                kwic_min = before_indices[-1]
-                kwic_max = after_indices[-1]
-
-                kwic_df = chunk.loc[kwic_min:kwic_max]
+                kwic_df = chunk.loc[before_indices[-1]:after_indices[-1]]
                 kwic_dfs.append({'df': kwic_df, 'hits': curr_index})   
             last_chunk = chunk
         return kwic_dfs
